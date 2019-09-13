@@ -1,0 +1,769 @@
+---
+title: "Aztec Product Space, Part 1"
+author: "Rudolf Cesaretti"
+date: "September 8, 2019"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+setwd("C:/Users/TJ McMote/Desktop/Joffa Complexity")
+require(knitr)
+# Set so that long lines in R will be wrapped:
+opts_chunk$set(tidy.opts=list(width.cutoff=80),tidy=TRUE)
+```
+## Setup
+
+```{r }
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(data.table))
+library(ggthemes)
+library(Cairo)
+library(RColorBrewer)
+library(stringr)
+library(gtools) #provides combination function for edge list creation
+suppressPackageStartupMessages(library(igraph))
+suppressPackageStartupMessages(library(gridExtra))
+suppressPackageStartupMessages(library(MASS))
+suppressPackageStartupMessages(library(NSM3))
+```
+
+##Load and Reformat Data
+
+```{r}
+data <- fread('./MdH_v3_RC.csv')
+data_short <- data %>% 
+    dplyr::select(-Runaways, -Deaths,  -Market, -`Landholding HHH`, -`Renting HHH`, -`Farming HHH`) %>% 
+    filter(Community != 'Total') %>% arrange(Community)
+data_long <- data_short %>% gather(Occupation, Workers, 7:25) 
+paste('Number of occupations:', length(unique(data_long$Occupation)))
+```
+
+#Introduction
+
+This analysis should address the following questions
+
+1) Does the Aztec division of labor conform to the quantitative expectations of economic geography, based on modern and historical Western economies?
+
+2) What can we learn about the structure of the Aztec division of labor from economic complexity analysis?
+
+The organization of the division of labor of ancient non-western economies like the Aztecs is not well understood in quantitative terms. A growing body of scholarship has demonstrated that early market economies emerged in Prehispanic Central Mexico, but the archaeological and early historical data are often too limited for detailed quantitative comparison with modern economies. Instead, Western economic models have been adopted or adapted to such contexts based on their rough qualitative consistency with the existing data. 
+
+Although the Aztecs had a vibrant market economy and urban hierarchy of central places, their division of labor was not organized exactly according to Western market institutions. Some have argued that the distribution of different occupational specializations among settlements was uneven and lumpy (Brumfiel, 1987). Most trades tended to be concentrated in a handful of towns, such that towns have particular occupational specializations. This contrasts with economic geography models, which posit that occupations are more-or-less evenly distributed among towns according to the scope of demand and their rank in the central place hierarchy. It is therefore unclear to what degree Western economic models apply to them. We want to know if they were different, how they were different, and why they were different.
+
+What is the cause of lumpiness in different occupational specializations? Groups of specializations? To answer these questions, we use economic complexity methods (Product Space, Scaling) and models from economic geography. 
+
+##Barrio Merchants
+
+Our analyses make clear that the "Barrio Merchants" (\textit{acxoteca}) represent a major difference between the Western (modern and historical) and Aztec economies because the geographical distribution of merchants among towns does not conform to the expectations of economic geography.	Including the barrio merchants (an extreme outlier) in the occupational specialization data hurts/destroys canonical CPT relationships between the ubiquity and aggregate scale of occupations, as well as town population and the degree of specialization (% occu specialists). Because these relationships show good fits without Barrio Merchants, we must assume that the bottom-up market processes of specialization leading to modern/Western central place hierarchies DID NOT cause spatial distribution of Barrio Merchants. 
+
+```{r}
+g <- ggplot(subset(data_long, Workers > 0), aes(x = Occupation, y = Community, color = -Workers)) + theme_tufte() + 
+    geom_point(size = 1) + coord_fixed(ratio=.5) + theme(legend.position = 'None',
+    axis.text=element_text(size = 8), axis.title = element_text(size=10), axis.text.x=element_text(angle=-90))
+g
+```
+
+
+```{r}
+presence <- data_long %>% mutate(presence = ifelse(Workers > 0, 1, 0))
+diversity <- presence %>% group_by(Community) %>% mutate(diversity = sum(presence)) %>% 
+    dplyr::select(Community, Region, `Total HHH`, `Total Commoner HHH`, Total, diversity) %>% distinct %>% ungroup
+	
+presence <- data_long %>% mutate(presence = ifelse(Workers > 0, 1, 0))
+diversity_nomerc <- presence %>% group_by(Community) %>% mutate(diversity = sum(presence)) %>% 
+    dplyr::select(Community, Region, `Total HHH`, `Total Commoner HHH`, Total, diversity) %>% distinct %>% ungroup
+diversity_nomerc[17,5] <- 19
+diversity_nomerc[17,6] <- 6
+```
+
+
+#Univariate Distributional Analysis 
+
+A primary concern raised by Joffa's analysis surrounded the validity of the MH data given certain data quality issues. First, it is unclear whether the occupational data is sufficient. The rarer ~20 occupations recorded in the MH are not yet in our dataset, and these comprise a crucial aspect of any central place hierarchy. 
+
+The MH also only records commoner occupational specializations -- omitting occupational specializations practiced by noble households because nobles were not liable to pay tribute (taxes in kind from their specialized occupational output). 
+
+Second, it is unclear whether the relatively small sample of towns, lacking settlements at the very top of the urban hierarchy, is sufficient to exhibit general patterns (even if they did exist). One settlement is missing from our current dataset, and others have been merged for no apparent reason. The 'settlements' of the MH are actually political municipalities that conflate both urban and rural areas, and the territory covered in the data are spatially discontinuous (the 3 southern region towns are further away).
+
+In order to cross-check the validity of the MH dataset, we first subject the univariate distributions of settlement population and occupational specialization to analysis. Log-normal distributions are expected for modern urban variables, and indicate that the data's underlying generative processes are unconstrained (i.e. strongly interacting) and multiplicative (Batty, 2006; Gibrat, 1931; Limpert et al., 2001; Montroll and Shlesinger, 1982). We might therefore expect that the MH town variables would also exhibit log-normality if they are valid. 
+
+##Occupational Diversity
+
+The histograms below (n = 20) show the distributions of (a) occupational diversity among towns, and (b) the natural log of occupational diversity among towns. Blue distributions are kernel density PDFs of each variable, and red lines are Gaussian curves fitted to the sample means and variances.
+
+If the distribution is Log-normal, then it conforms to theoretical expectations.
+
+The distributions below are clearly missing the fat right tail typical of log-normal distributions. This is because we are missing data on the rarest occupations, which should inflate the diversity of the largest settlements.
+
+```{r}
+par(mfrow = c(1, 2))
+# Unlogged Diversity
+DivHist <- hist(diversity$diversity, breaks=seq(1,14,1), plot = FALSE)
+pos <- pretty(DivHist$density, n = 6)
+freq <- round(pos * length(diversity$diversity) * with(DivHist, breaks[2] - breaks[1]))
+new.mai <- old.mai <- par("mai")
+new.mai[4] <- old.mai[2]
+par(mai = new.mai)
+graphics:::plot.histogram(DivHist, freq = FALSE, col="gray70", family="sans", main="(a)", cex.main=2, 
+                          font.main=2, font.lab=2, xlab = "Occu Diversity", ylab="Frequency",
+                          border="black", yaxt='n')
+Axis(side = 2, at = pos, labels = freq)
+Axis(side = 4, at = pos, labels = pos)
+mtext("Density           ", side = 4, line = 3, family="sans", font=2)
+polygon(density(diversity$diversity), col = rgb(0, 0, 1, 0.3))
+fit<-fitdistr(diversity$diversity,"normal")$estimate
+xfit<-seq((min(diversity$diversity)-1),(max(diversity$diversity)+1),length=50) 
+yfit<-dnorm(xfit,fit[1],fit[2])
+lines(xfit, yfit, col="red", lwd=2)
+
+# Logged Diversity
+LogDivHist <- hist(log(diversity$diversity), breaks=seq(0.5,3.5,0.25), plot = FALSE)
+pos <- pretty(LogDivHist$density, n = 6)
+freq <- round(pos * length(log(diversity$diversity)) * with(LogDivHist, breaks[2] - breaks[1]))
+new.mai <- old.mai <- par("mai")
+new.mai[4] <- old.mai[2]
+par(mai = new.mai)
+graphics:::plot.histogram(LogDivHist, freq = FALSE, col="gray70", family="sans", main="(b)", cex.main=2, 
+                          font.main=2, font.lab=2, xlab = "Log Occu Diversity", ylab="          Frequency",
+                          border="black", yaxt='n')
+Axis(side = 2, at = pos, labels = freq)
+Axis(side = 4, at = pos, labels = pos)
+mtext("Density", side = 4, line = 3, family="sans", font=2)
+polygon(density(log(diversity$diversity)), col = rgb(0, 0, 1, 0.3))
+fit<-fitdistr(log(diversity$diversity),"normal")$estimate
+xfit<-seq((min(log(diversity$diversity))-2),(max(log(diversity$diversity))+1),length=50) 
+yfit<-dnorm(xfit,fit[1],fit[2])
+lines(xfit, yfit, col="red", lwd=2)
+```
+
+Despite the lack of a fat right tail, KS tests of log-normality fail to reject the Gaussian null hypothesis. This means that we can't say that this data was not sampled at random from a log-normal distribution, which is good news.
+
+
+```{r,message=FALSE,warning=FALSE}
+#### Kolmogorov-Smirnov test for Log Occu Diversity data (n = 20) ####
+
+fit<-fitdistr(log(diversity$diversity),"normal")$estimate
+ks.test(log(diversity$diversity), "pnorm",fit[1],fit[2])
+```
+
+You can see below that the ECDF of Occu Diversity conforms closely to a log-normal distribution (blue line), and doesn't come close to the 95% CI. This suggests that the data is valid at present, and adding the rare occupation data will only make the data better. (Note, there are only 10 dots on this CDF because there are only 10 unique diversity values.)
+
+```{r,message=FALSE,warning=FALSE}
+#### Kolmogorov-Smirnov Test Plots with 95% C.I.s ####
+
+invisible(ecdf.ks.CI(log(diversity$diversity), family="sans", main= "Kolmogorov-Smirnov Test Plot with 95% C.I.", cex.main=2, font.main=2, font.lab=2, xlab="Log Occu Diversity", ylab="ECDF(Log Occu Diversity)"))
+fit<-fitdistr(log(diversity$diversity),"normal")$estimate
+Norm1 <- rnorm(10000, fit[1],fit[2])
+lines(ecdf(Norm1), do.points = FALSE, verticals=T, lwd=2, col="blue")
+```
+
+If the data were truly log-normal, then the fat right tail of the distribution would form a Zipfian rank-size power law. Zipfian distributions have frequently been shown to be a pronounced feature of the right tails of log-normal distributions for modern urban variables (Adamic and Huberman, 2002; Batty, 2006; Gabaix, 1999; Pumain, 2000). Historical case studies have also found evidence for this threshold effect among pre-modern cities (Bairoch, 1991; De Vries, 1984; Dittmar, 2011; Johnson, 1981; Pumain, 2000).
+
+As seen below, no such Zipfian rank-size power law is evident in the data. The red line is a Zipfian power law with slope = -0.5. The convex shape of the rank-size distribution strongly highlights that the most diverse towns are systematically undersized in terms of occupational diversity. Adding the rare occupation data should go a long way to alleviating this. 
+
+
+```{r}
+#### Zipfian Tail of Taxpayer Count Log-Log Rank-Size Plot ####
+labels <- c("Atzompan", "Tlatenco","Tocuillan","Tepetzinco","Teotlaltzinco","Tianquiztenco","Aztatoacan","Huexotzinco","Chiauhtzinco","Coyotzinco","Tianquizmanalco","Cecalacoayan","Atlixco","Tlayacaque","Tlanicontlan", "Acapetlauacan","Acxotlan","Almoyahuacan / Ocotepec","Tetzmollocan / San Salvador","Xaltepetlapan")
+plot(log(rank(-diversity$diversity)), log(diversity$diversity), main= "Town Occu Diversity Rank Size", cex.main=1.5, pch=16, font.main=2, font.lab=2, xlab="Log Rank", ylab="Log Taxpayers")
+abline(a=max(log(diversity$diversity)), b=-0.478, col="red", lwd=2.5)
+text(1, 5.5, "Ln(Diversity) = 7.16 - 0.48(Ln(Rank))", cex = 0.8, font=2)
+text(log(rank(-diversity$diversity)), log(diversity$diversity), labels=labels, cex=0.9, font=2, pos=4)
+```
+
+
+##Town Population
+
+Here we also expect log-normality, and no new data can be added, so the sample data needs to conform to theoretical expectations.
+
+As seen in the histograms below, the data is approximately log-normal. The unlogged distribution (a) is left-skew, illustrating a fat right tail, while the logged (b) blue kernel density PDF closely matches the red fitted gaussian distribution. This is achieved in spite of our tiny sample size (n = 20).
+
+```{r}
+par(mfrow = c(1, 2))
+
+# Unlogged Population
+PopHist <- hist(diversity$`Total HHH`, breaks=seq(0,1400,100), plot = FALSE)
+pos <- pretty(PopHist$density, n = 6)
+freq <- round(pos * length(diversity$`Total HHH`) * with(PopHist, breaks[2] - breaks[1]))
+new.mai <- old.mai <- par("mai")
+new.mai[4] <- old.mai[2]
+par(mai = new.mai)
+graphics:::plot.histogram(PopHist, freq = FALSE, col="gray70", family="sans", main="(a)", cex.main=2, 
+                          font.main=2, font.lab=2, xlab = "Population (Total Households)", ylab="Frequency",
+                          border="black", yaxt='n')
+Axis(side = 2, at = pos, labels = freq)
+Axis(side = 4, at = pos, labels = pos)
+mtext("Density           ", side = 4, line = 3, family="sans", font=2)
+polygon(density(diversity$`Total HHH`), col = rgb(0, 0, 1, 0.3))
+fit<-fitdistr(diversity$`Total HHH`,"normal")$estimate
+xfit<-seq((min(diversity$`Total HHH`)-1),(max(diversity$`Total HHH`)+1),length=50) 
+yfit<-dnorm(xfit,fit[1],fit[2])
+lines(xfit, yfit, col="red", lwd=2)
+
+# Logged Population
+LogPopHist <- hist(log(diversity$`Total HHH`), breaks=seq(4.5,7.5,0.2), plot = FALSE)
+pos <- pretty(LogPopHist$density, n = 6)
+freq <- round(pos * length(log(diversity$`Total HHH`)) * with(LogPopHist, breaks[2] - breaks[1]))
+new.mai <- old.mai <- par("mai")
+new.mai[4] <- old.mai[2]
+par(mai = new.mai)
+graphics:::plot.histogram(LogPopHist, freq = FALSE, col="gray70", family="sans", main="(b)", cex.main=2, 
+                          font.main=2, font.lab=2, xlab = "Log Population (Total Households)", ylab="          Frequency",
+                          border="black", yaxt='n')
+Axis(side = 2, at = pos, labels = freq)
+Axis(side = 4, at = pos, labels = pos)
+mtext("Density", side = 4, line = 3, family="sans", font=2)
+polygon(density(log(diversity$`Total HHH`)), col = rgb(0, 0, 1, 0.3))
+fit<-fitdistr(log(diversity$`Total HHH`),"normal")$estimate
+xfit<-seq((min(log(diversity$`Total HHH`))-2),(max(log(diversity$`Total HHH`))+1),length=50) 
+yfit<-dnorm(xfit,fit[1],fit[2])
+lines(xfit, yfit, col="red", lwd=2)
+
+```
+
+KS test of log-normality fails to reject the Gaussian null hypothesis for the logged data. 
+
+```{r,message=FALSE,warning=FALSE}
+#### Kolmogorov-Smirnov test for Log Tax data (n = 93) ####
+
+fit<-fitdistr(log(diversity$`Total HHH`),"normal")$estimate
+ks.test(log(diversity$`Total HHH`), "pnorm",fit[1],fit[2])
+```
+
+The CDF of the logged data isnt beautiful, but it loosely conforms to the blue log-normal line, and stays clear of the red 95% CI. Given that the sample is small and geographically discontinuous, I think that this is pretty good.
+
+
+```{r}
+#### Kolmogorov-Smirnov Test Plots with 95% C.I.s ####
+invisible(ecdf.ks.CI(log(diversity$`Total HHH`), family="sans", main= "Kolmogorov-Smirnov Test Plot with 95% C.I.", cex.main=2, font.main=2, font.lab=2, xlab="Log Population (Total Households)", ylab="ECDF(Log Pop)"))
+fit<-fitdistr(log(diversity$`Total HHH`),"normal")$estimate
+Norm1 <- rnorm(10000, fit[1],fit[2])
+lines(ecdf(Norm1), do.points = FALSE, verticals=T, lwd=2, col="blue")
+```
+
+The rat right tail of the population data also loosely conforms to a Zipfian rank-size power law. The "snaking" of the distribution about the red line is very common for historical settlement data, which is likely genuine to some degree, but also in-part due to sample size, geographical partitioning, boundary effects, and error (households not perfectly proportional to population, urban-rural pooling of municipalities). 
+
+Taken together, historians and achaeologists would see this result as verification of the validity of the population data.
+
+```{r}
+#### Quasi-Zipfian Tail of Taxpayer Count Log-Log Rank-Size Plot ####
+labels <- c("Atzompan", "Tlatenco","Tocuillan","Tepetzinco","Teotlaltzinco","Tianquiztenco","Aztatoacan","Huexotzinco","Chiauhtzinco","Coyotzinco","Tianquizmanalco","Cecalacoayan","Atlixco","Tlayacaque","Tlanicontlan", "Acapetlauacan","Acxotlan","Almoyahuacan / Ocotepec","Tetzmollocan / San Salvador","Xaltepetlapan")
+plot(log(rank(-diversity$`Total HHH`)), log(diversity$`Total HHH`), main= "Town Population Zipfian Tail", cex.main=1.5, pch=16, font.main=2, font.lab=2, xlab="Log Rank", ylab="Log Taxpayers")
+abline(a=max(log(diversity$`Total HHH`)), b=-0.478, col="red", lwd=2.5)
+text(1, 5.5, "Ln(Pop) = 7.16 - 0.48(Ln(Rank))", cex = 0.8, font=2)
+text(log(rank(-diversity$`Total HHH`)), log(diversity$`Total HHH`), labels=labels, cex=0.9, font=2, pos=4)
+
+```
+
+
+#Town Occupational Diversity and Population
+
+The statistical relationship between the occupational diversity and population of settlements has been well documented by economic geographers and urban economists since the mid-20th century (see e.g. Berry, 1967). Scatterplots of settlement population on the abscissa and occupational diversity on the ordinate (simple frequency counts of different occupations) typically display either logarithmic ($y = \alpha + \beta \log(x)$) or sublinear power law ($y = \alpha x^\beta$; log-linear) relationships. Whether the logarithmic or power functional forms are exhibited depends upon A) the scale of the urban hierarchy represented in the data, and B) the specificity of the occupational classification schema (Bettencourt et al., 2014). The Matricula de Huexotzinco data represents a moderate-scale sample of the Central Mexican settlement hierarchy (it does not include many of the largest cities), suggesting a power law because occupational diversity gains with settlement size should not level off. However, the specificity of the occupational taxonomy used is quite coarse, suggesting a logarithmic function because the specialization of larger settlements may not be captured. The yet-unrecorded rarer occupations in the dataset likewise suggest asymptotic behavior.  
+
+```{r}
+presence <- data_long %>% mutate(presence = ifelse(Workers > 0, 1, 0))
+diversity <- presence %>% group_by(Community) %>% mutate(diversity = sum(presence)) %>% 
+    dplyr::select(Community, Region, `Total HHH`, `Total Commoner HHH`, Total, diversity) %>% distinct %>% ungroup
+	
+diversity_nomerc <- presence %>% group_by(Community) %>% mutate(diversity = sum(presence)) %>% 
+    dplyr::select(Community, Region, `Total HHH`, `Total Commoner HHH`, Total, diversity) %>% distinct %>% ungroup
+diversity_nomerc[17,5] <- 19
+diversity_nomerc[17,6] <- 6
+```
+
+###Log-Linear OLS of Occu Diversity on Total Households
+
+One way to check whether we have a modern urban power law relation between occu diversity and population is to test the predictions of urban scaling theory, which has been empirically verified in both modern and premodern contexts (see Bettencourt et al., 2014; Youn et al., 2016; Hanson et al., 2017). We want to estimate the equation:
+
+\begin{equation}
+\label{eq-abc}
+D(N) = D_{0} N^{1-\delta} = D_{0} N^{\gamma}
+\end{equation}
+[\code]
+
+where $D(N)$ is settlement occupational diversity, $N$ is settlement population, $D_{0}$ is a constant (scaling prefactor) reflecting the number of occupational functions per capita (per social network connection) for the smallest settlements, and $1-\delta = \gamma$ is the scaling parameter governing the rate of occupational diversification with greater population. Typical values for $1-\delta = \gamma \approx [2/3, 5/6]$. If such values are achieved, then this would confer towards the validity of the data.
+
+
+```{r, message=FALSE,warning=FALSE}
+library(zoo)
+library(lmtest)
+library(sandwich)
+#construct OLS model using the natural log of uploaded dataframe variables
+d_model <- lm(log(diversity$diversity) ~ log(diversity$`Total HHH`))
+```
+
+$n = 20$
+Adjusted R-Squared:
+```{r}
+summary(d_model)$adj.r.squared
+```
+
+Robust Parameter Estimates:
+```{r}
+#report estimated OLS model parameters using heteroskedasticity-consistent covariance matrix
+#"HC1" param replicates Stata's default settings using the "robust" function
+coeftest(d_model, vcov = vcovHC(d_model, "HC1"))
+```
+
+95% Confidence Intervals:
+```{r}
+#set HC1 covariance matrix as an object
+Cov<-vcovHC(d_model, "HC1")
+
+#calculate and report 95% confidence interval using HC1 covariance matrix
+tt <-qt(c(0.025,0.975),summary(d_model)$df[2])
+se <- sqrt(diag(Cov))
+ci <-coef(d_model) + se %o% tt
+ci
+```
+
+####Log-Linear OLS of Occu Diversity on Total Households
+```{r, message=FALSE,warning=FALSE}
+ggplot(diversity, aes(x=log(`Total HHH`), y=log(diversity))) +
+geom_point(size=3, colour="black", shape=1) + 
+geom_smooth(fullrange=TRUE, method =lm, se=TRUE, colour="red", size=1) +
+geom_abline(mapping = NULL, data = NULL, slope = 1, intercept = -3.85, na.rm = FALSE, show.legend = NA, colour="black", size=1) +
+xlab("Log Population (Households)") +
+ylab("Log Occu Diversity") +
+theme_bw() +
+theme(axis.text = element_text(size = 12, color="black")) +
+theme(axis.title.y = element_text(size = 14, face = "bold")) +
+theme(axis.title.x = element_text(size = 14, face = "bold"))
+```
+
+The estimated scaling parameter \gamma is thus considerably below (0.44 < 0.66-0.85) the predictions of settlement scaling theory. However, I think this will be rectified when the dataset is complete. Adding the 20 rarest occupations should increase the slope of the bivariate distribution by raising the occupational diversity of the largest settlements more than the smaller settlements. In light of this, the preliminary results below are promising. 
+
+```{r}
+d_model.resid <- resid(d_model)
+shapiro.test(d_model.resid)
+
+fit<-fitdistr(d_model.resid,"normal")$estimate
+ks.test(d_model.resid, "pnorm",fit[1],fit[2])
+```
+
+KS and Shapiro-Wilk parametric normality tests for the residuals -- using a Gaussian null hypothesis with the mean and variance of the sample -- failed to reject the null hypothesis. There is also no visible autocorrelation in the residual plot. 
+
+```{r}
+par(mfrow = c(1, 2))
+hist(d_model$residuals)
+plot(d_model$residuals)
+```
+
+###Logarithmic OLS of Occu Diversity on Total Households
+
+As noted above, a good-fiting logarithmic function ($y = \alpha + \beta \log(x)$) for Occu Diversity on Total Households would further suggest that the missing data (rare occupations) are obscuring important relationships in the data. 
+
+Here we see that the logarithmic fit is slightly better than the power law fit, and the intercept term is significant (the power law intercept was not).
+
+```{r}
+d_model2 <- lm(diversity ~ log(`Total HHH`), data = diversity) 
+summary(d_model2)
+```
+
+
+Visual inspection of goodness-of-fit is also good, and nicley illustrates the asymptotic leveling-off of the bivariate distribution. This is likely due to both the missing data and the coarse resolution of the occupational taxonomy.
+
+```{r}
+#Fitting logarithmic model
+
+ggplot(diversity, aes(x = `Total HHH`, y = diversity)) + theme_tufte() + geom_point(color = 'midnightblue') +     geom_smooth(method = lm, se = FALSE, color = 'black', formula = y ~ log(x))   
+
+```
+
+Again, KS and Shapiro-Wilk parametric normality tests for the residuals failed to reject the fitted Gaussian null hypothesis. There is also no visible autocorrelation in the residual plot. 
+
+```{r}
+d_model2.resid <- resid(d_model2)
+shapiro.test(d_model2.resid)
+
+fit<-fitdistr(d_model2.resid,"normal")$estimate
+ks.test(d_model2.resid, "pnorm",fit[1],fit[2])
+```
+
+
+```{r}
+par(mfrow = c(1, 2))
+hist(d_model2$residuals)
+plot(d_model2$residuals)
+```
+
+
+This, we have a slightly better fit with the logarithmic model, likely indicating that our missing occupations are having and impact on the results.
+
+Nevertheless, it must be mentioned that a good fit was obtained in both cases, indicating the basic validity of the data.
+
+We need to analyze the full dataset in order to determine how different the Aztec division of labor was from that of modern Western economies.
+
+
+#Occupation Ubiquity and Occupation Scale
+
+The relationship between occupation ubiquity among towns and overall occupation scale is a critical test of the Aztec economy because this relationship is strong and positive for Western and modern economies (i.e. central place hierarchies). Based on the first principles of Central Place Theory and subsequent developments in economic geography, the strong correlation between ubiquity and scale emerges via market forces (i.e. supply and demand in space). This implies that major deviations from this pattern (outliers) are not driven by market forces, and the lack of entropy in the structure of such outliers (shannon information) reveals deviations from modern/western market forces in the social system that produced it (see Batty).
+
+
+```{r}
+ubiquity <- presence %>% group_by(Occupation) %>% mutate(`Total Workers` = sum(Workers), ubiquity = sum(presence)) %>% 
+    dplyr::select(Occupation, `Total Workers`, ubiquity) %>% distinct %>% ungroup
+
+```
+
+## Barrio Merchant Extreme Outliers
+
+As seen in the plot below, Barrio Merchants are an extreme outlier (lower right). The overall bivariate distribution of ubiquity on aggregate scale exhibits a positive trajectory with a heteroskedastic curvilinear point cloud, either conforming to a logarithmic function or sublinear power law.  
+
+```{r}
+ggplot(ubiquity, aes(x = `Total Workers`, y = ubiquity)) + theme_tufte() + geom_point(color = 'darkred') + geom_smooth(method = lm, se = FALSE, color = 'black')  + geom_text(aes(label=Occupation),hjust=0, vjust=0, size=2.5)
+```
+
+This extreme outlier depresses the adjusted correlation coefficient to $R^{2} < 0.01$, and the model residuals are clearly autocorrelated:
+
+```{r}
+u_model <- lm(ubiquity ~ `Total Workers`, data = ubiquity) 
+summary(u_model)
+plot(u_model$residuals)
+```
+
+### Without Barrio Merchant Outlier: Logarithmic OLS Model Fit
+
+Removing these outliers drastically improves model fit, as seen in the graph below. 
+
+```{r}
+ubiquity_nomerc <- ubiquity[1:18,]
+ggplot(ubiquity_nomerc, aes(x = `Total Workers`, y = ubiquity)) + theme_tufte() + geom_point(color = 'darkred') + geom_smooth(method = lm, se = FALSE, color = 'black', formula = y ~ log(x)) + geom_text(aes(label=Occupation),hjust=0, vjust=0, size=2.5)
+```
+
+The Logarithmoc OLS model achieves a $R^{2} = 0.51$, even if its intercept term has a high probability of type I error.  
+
+```{r}
+u_model2 <- lm(ubiquity ~ log(`Total Workers`), data = ubiquity_nomerc) 
+summary(u_model2)
+```
+
+KS and Shapiro-Wilk parametric normality tests for the residuals failed to reject the fitted Gaussian null hypothesis. There is also no clear autocorrelation in the residual plot. 
+
+```{r}
+u_model2.resid <- resid(u_model2)
+shapiro.test(u_model2.resid)
+
+fit<-fitdistr(u_model2.resid,"normal")$estimate
+ks.test(u_model2.resid, "pnorm",fit[1],fit[2])
+```
+
+
+```{r}
+par(mfrow = c(1, 2))
+hist(u_model2$residuals)
+plot(u_model2$residuals)
+```
+
+### Without Barrio Merchant Outlier: Log-Linear OLS Model Fit
+
+```{r}
+u_model3 <- lm(log(ubiquity) ~ log(`Total Workers`), data = ubiquity_nomerc) 
+summary(u_model3)
+```
+
+Log-Linear OLS model has slightly higher $R^{2} = 0.56$, and much better visual fit for the least ubiquitous occupations.
+
+####Log-Linear OLS of Occu Diversity on Total Households
+```{r, message=FALSE,warning=FALSE}
+ggplot(ubiquity_nomerc, aes(x=log(`Total Workers`), y=log(ubiquity))) +
+geom_point(size=3, colour="black", shape=1) + 
+geom_smooth(fullrange=TRUE, method =lm, se=TRUE, colour="red", size=1) +
+#geom_abline(mapping = NULL, data = NULL, slope = 1, intercept = -3.85, na.rm = FALSE, show.legend = NA, colour="black", size=1) +
+xlab("Log Total Workers in Occupation") +
+ylab("Log Ubiquity of Occu Among Settlements") +
+theme_bw() +
+geom_text(aes(label=Occupation),hjust=0, vjust=0, size=2.5) +
+theme(axis.text = element_text(size = 12, color="black")) +
+theme(axis.title.y = element_text(size = 11, face = "bold")) +
+theme(axis.title.x = element_text(size = 14, face = "bold"))
+```
+
+While KS parametric normality tests for the residuals failed to reject the fitted Gaussian null hypothesis, the higher statistical power (i.e. sensitivity to type I error in inliers and outliers) Shapiro-Wilk test suggests a false positive is possible. This can be seen in the residual histograom, where there is no right tail. This may be due to the missing data. There no clear autocorrelation in the residual plot. 
+
+```{r}
+u_model3.resid <- resid(u_model3)
+shapiro.test(u_model3.resid)
+
+fit<-fitdistr(u_model3.resid,"normal")$estimate
+ks.test(u_model3.resid, "pnorm",fit[1],fit[2])
+```
+
+
+```{r}
+par(mfrow = c(1, 2))
+hist(u_model3$residuals)
+plot(u_model3$residuals)
+```
+
+##Conclusions About Occupation Ubiquity and Occupation Scale
+
+####Barrio Merchants
+The distribution of Barrio Merchants is so concentrated that it completely destroys canonical CPT scaling relationships between occupational ubiquity and overall occu scale. Because these relationships show good fits without Barrio Merchants, we must assume that the bottom-up market processes of specialization leading to Western/modern CPT hierarchies did nt produce the distribution of Barrio Merchants. This is an unambiguous difference between the Aztec and Western/modern economies. 
+
+
+####Functional Forms
+It is yet unclear which functional form (logarithmic or power law) better fits the data. We will need to add more data.
+
+
+####Regression Interpretations
+After setting the Barrio Merchants aside, the moderate fit ( $R^{2} = 0.51-0.56$ ) between occupation ubiquity among towns and overall occupation scale suggests that:
+
+A) the missing data has depressed the relationship, 
+
+and/or 
+
+B) the distribution of Aztec occupations was much lumpier and more irregular than Western/modern economies. 
+
+These are not mutually exclusive, and we need to analyze the full dataset to distinguish them
+
+Given the low levels of technology across the Aztec economy, we can think of overall occupation scale as a proxy for overall demand. All else being equal, more people means greater output, and technology was a basic equalizer of productivity. 
+
+In contrast, ubiquity is how geographically-widespread production and demand are.
+
+Relative ubiquity (i.e. the regression residuals), factoring-out the influence of demand, seems to be primarily constrained by resource-constrained supply limitations.
+
+Negative residuals are occupations with more limited and clumpy distributions. These basically conform to the RCA Belassa modularity groups(!), and include the natural resource resitricted occupations, such as those bound by mountain-forest products (Pine Resin, Pine Torch, Feathers, Hunters) and wetland products (reed mats, fishermen)
+
+Positive residuals are more widely- and evenly-distributed occupations. It is yet unclear what connects the positive residuals besides freedom from resource-constrained supply limitations. It may have to do with a high spatial dispersion of demand as well. 
+
+
+####Generic Occupational Lumpiness
+However, the lower $R^{2} = 0.51-0.56$ may be due to a more general lumpiness of occupations, both within and among settlements. This can be seen from the bar charts below.
+
+The aggregate ordered frequency distribution of occupations (for all cities) is approximately log-normal as it is for modern cities. This is also a characteristic of historical western societies, where almost every town had common occupations, and only the largest cities had the rarest occupations. (But how true is this generalization?)
+
+This gneralization seems to poorly characterize the MH dataset. If we keep the overall occupational scale ordering, we can see how poorly different towns conform to its basic contours. While most towns in the MH do still have approximately log-normal occupational distributions if reordered, they are clustered and irregular when the aggregate frequency ordering is kept. 
+
+
+```{r}
+data_transpose <- as.data.frame(t(as.matrix(data)))
+colnames(data_transpose) <- unlist(data_transpose[row.names(data_transpose)=='Community',])
+data_transpose <- data_transpose[-c(1:12, 32),] 
+data_transpose$Occu <- row.names(data_transpose)
+
+par(mfrow = c(2, 2))
+
+ggplot(data_transpose, aes(x = reorder(Occu, -as.numeric(as.character(Total))), y = as.numeric(as.character(Total)))) + 
+geom_bar(stat="identity", color='skyblue',fill='steelblue') + 
+theme(axis.text.x=element_text(angle=45, hjust=1, size = 8, color="black", face = "bold"), axis.text.y=element_text(color="black", face = "bold"), plot.title = element_text(face = "bold", size = (15)), axis.title.y = element_text(size = 12, face = "bold")) + 
+ylab("Frequency") + xlab("") +
+geom_text(vjust=1, fontface="bold", data = data_transpose, aes(label = as.numeric(as.character(Total)), x = reorder(Occu, -as.numeric(as.character(Total))), y = as.numeric(as.character(Total)) + 25), size = 3.5) +
+ggtitle("All Settlements") 
+
+ggplot(data_transpose, aes(x = reorder(Occu, -as.numeric(as.character(Total))), y = as.numeric(as.character(data_transpose$`San Juan Huexotzinco`)))) + 
+geom_bar(stat="identity", color='skyblue',fill='steelblue') + 
+theme(axis.text.x=element_text(angle=45, hjust=1, size = 8, color="black", face = "bold"), axis.text.y=element_text(color="black", face = "bold"), plot.title = element_text(face = "bold", size = (15)), axis.title.y = element_text(size = 12, face = "bold")) + 
+ylab("Frequency") + xlab("") +
+geom_text(vjust=1, fontface="bold", data = data_transpose, aes(label = as.numeric(as.character(data_transpose$`San Juan Huexotzinco`)), x = reorder(Occu, -as.numeric(as.character(data_transpose$`San Juan Huexotzinco`))), y = as.numeric(as.character(data_transpose$`San Juan Huexotzinco`)) + 0.5), size = 3.5) +
+ggtitle("San Juan Huexotzinco") 
+
+ggplot(data_transpose, aes(x = reorder(Occu, -as.numeric(as.character(Total))), y = as.numeric(as.character(data_transpose$`Santa Maria Tetzmollocan / San Salvador`)))) + 
+geom_bar(stat="identity", color='skyblue',fill='steelblue') + 
+theme(axis.text.x=element_text(angle=45, hjust=1, size = 8, color="black", face = "bold"), axis.text.y=element_text(color="black", face = "bold"), plot.title = element_text(face = "bold", size = (15)), axis.title.y = element_text(size = 12, face = "bold")) + 
+ylab("Frequency") + xlab("") +
+geom_text(vjust=1, fontface="bold", data = data_transpose, aes(label = as.numeric(as.character(data_transpose$`Santa Maria Tetzmollocan / San Salvador`)), x = reorder(Occu, -as.numeric(as.character(data_transpose$`Santa Maria Tetzmollocan / San Salvador`))), y = as.numeric(as.character(data_transpose$`Santa Maria Tetzmollocan / San Salvador`)) + 7), size = 3.5) +
+ggtitle("Santa Maria Tetzmollocan / San Salvador") 
+
+ggplot(data_transpose, aes(x = reorder(Occu, -as.numeric(as.character(Total))), y = as.numeric(as.character(data_transpose$`San Luis Coyotzinco`)))) + 
+geom_bar(stat="identity", color='skyblue',fill='steelblue') + 
+theme(axis.text.x=element_text(angle=45, hjust=1, size = 8, color="black", face = "bold"), axis.text.y=element_text(color="black", face = "bold"), plot.title = element_text(face = "bold", size = (15)), axis.title.y = element_text(size = 12, face = "bold")) + 
+ylab("Frequency") + xlab("") +
+geom_text(vjust=1, fontface="bold", data = data_transpose, aes(label = as.numeric(as.character(data_transpose$`San Luis Coyotzinco`)), x = reorder(Occu, -as.numeric(as.character(data_transpose$`San Luis Coyotzinco`))), y = as.numeric(as.character(data_transpose$`San Luis Coyotzinco`)) + 0.5), size = 3) +
+ggtitle("San Luis Coyotzinco") 
+```
+
+```{r}
+data_transpose <- as.data.frame(t(as.matrix(data)))
+colnames(data_transpose) <- unlist(data_transpose[row.names(data_transpose)=='Community',])
+data_transpose <- data_transpose[-c(1:12, 32),] 
+data_transpose$Occu <- row.names(data_transpose)
+
+par(mfrow = c(2, 2))
+
+ggplot(data_transpose, aes(x = reorder(Occu, -as.numeric(as.character(Total))), y = as.numeric(as.character(`San Francisco Tianquiztenco`)))) + 
+geom_bar(stat="identity", color='skyblue',fill='steelblue') + 
+theme(axis.text.x=element_text(angle=45, hjust=1, size = 8, color="black", face = "bold"), axis.text.y=element_text(color="black", face = "bold"), plot.title = element_text(face = "bold", size = (15)), axis.title.y = element_text(size = 12, face = "bold")) + 
+ylab("Frequency") + xlab("") +
+geom_text(vjust=1, fontface="bold", data = data_transpose, aes(label = as.numeric(as.character(`San Francisco Tianquiztenco`)), x = reorder(Occu, -as.numeric(as.character(`San Francisco Tianquiztenco`))), y = as.numeric(as.character(`San Francisco Tianquiztenco`)) + 0.2), size = 3.5) +
+ggtitle("San Francisco Tianquiztenco") 
+
+ggplot(data_transpose, aes(x = reorder(Occu, -as.numeric(as.character(Total))), y = as.numeric(as.character(data_transpose$`San Felipe Teotlaltzinco`)))) + 
+geom_bar(stat="identity", color='skyblue',fill='steelblue') + 
+theme(axis.text.x=element_text(angle=45, hjust=1, size = 8, color="black", face = "bold"), axis.text.y=element_text(color="black", face = "bold"), plot.title = element_text(face = "bold", size = (15)), axis.title.y = element_text(size = 12, face = "bold")) + 
+ylab("Frequency") + xlab("") +
+geom_text(vjust=1, fontface="bold", data = data_transpose, aes(label = as.numeric(as.character(data_transpose$`San Felipe Teotlaltzinco`)), x = reorder(Occu, -as.numeric(as.character(data_transpose$`San Felipe Teotlaltzinco`))), y = as.numeric(as.character(data_transpose$`San Felipe Teotlaltzinco`)) + 5), size = 3.5) +
+ggtitle("San Felipe Teotlaltzinco") 
+
+ggplot(data_transpose, aes(x = reorder(Occu, -as.numeric(as.character(Total))), y = as.numeric(as.character(data_transpose$`San Nicolas Cecalacoayan`)))) + 
+geom_bar(stat="identity", color='skyblue',fill='steelblue') + 
+theme(axis.text.x=element_text(angle=45, hjust=1, size = 8, color="black", face = "bold"), axis.text.y=element_text(color="black", face = "bold"), plot.title = element_text(face = "bold", size = (15)), axis.title.y = element_text(size = 12, face = "bold")) + 
+ylab("Frequency") + xlab("") +
+geom_text(vjust=1, fontface="bold", data = data_transpose, aes(label = as.numeric(as.character(data_transpose$`San Nicolas Cecalacoayan`)), x = reorder(Occu, -as.numeric(as.character(data_transpose$`San Nicolas Cecalacoayan`))), y = as.numeric(as.character(data_transpose$`San Nicolas Cecalacoayan`)) + 0.5), size = 3.5) +
+ggtitle("San Nicolas Cecalacoayan") 
+
+ggplot(data_transpose, aes(x = reorder(Occu, -as.numeric(as.character(Total))), y = as.numeric(as.character(data_transpose$`San Antonio Tlatenco`)))) + 
+geom_bar(stat="identity", color='skyblue',fill='steelblue') + 
+theme(axis.text.x=element_text(angle=45, hjust=1, size = 8, color="black", face = "bold"), axis.text.y=element_text(color="black", face = "bold"), plot.title = element_text(face = "bold", size = (15)), axis.title.y = element_text(size = 12, face = "bold")) + 
+ylab("Frequency") + xlab("") +
+geom_text(vjust=1, fontface="bold", data = data_transpose, aes(label = as.numeric(as.character(data_transpose$`San Antonio Tlatenco`)), x = reorder(Occu, -as.numeric(as.character(data_transpose$`San Antonio Tlatenco`))), y = as.numeric(as.character(data_transpose$`San Antonio Tlatenco`)) + 0.1), size = 3) +
+ggtitle("San Antonio Tlatenco") 
+```
+
+This lumpiness may be due to:
+
+A) Smaller populations and very low levels of demand and specialization more generally. Low, irregular, and saturated local demand for specialized products. If local demand for goods was high enough, there would be local specialists to meet it - as speculated by CPT. This suggests an uneven spatial distribution of demand (from both common individuals and from political elites/states)
+
+B) An abundance of occupations with resource-constrained supply limitations. Natural resource availability for part-time specialists was especially important due to low levels of demand and specialization, resulting in low logistical + information + supply chain + mercantile efficiency (i.e. "commercialization" or "market integration"), resulting in specialization conforming to local production (because the risks and opportunity costs of specializing in non-local products would greatly favor local resource product specialization)
+
+C) Patrilineal heritability of occupational specialization and usufruct rights lead to forwards and backwards path-dependent linkages in the spatial concentration of occupations
+
+D) Agglomeration effects afford efficiency of production and especially logistical-information economies of scale ??? merchants, elites, and consumers know which areas specialize in certain products. Given the low and irregular demand, this benefit is important for minimizing effort and maximizing marketability by making the locale an important stop for merchants and consumers 
+
+Possible consequences of this lumpiness include:
+
+1) Ability of local elites to efficiently amass lots of tribute in a specialized product, and consign this to merchants for sale elsewhere
+
+2) Low local prices for specialized products, favoring merchant middlemen prospectors who can come to buy low and sell high elsewhere 
+
+
+
+
+# Town Total Occupational Specialists on Population (Total Households)
+
+Scaling theory predicts that this will be directly proportional -- a power law with linear slope ( $ \beta \approx 1 $ ) -- which is observed for modern cities (see Bettencourt et al., 2014; Youn et al., 2016). 
+
+Commentary and interpretations are given following the analyses
+
+```{r}
+ESAA <- data_long %>% group_by(Community) %>% mutate(comm.specialists = sum(Workers)) %>% group_by(Occupation) %>% 
+    mutate(occ.specialists = sum(Workers)) %>% ungroup %>% 
+    mutate(ES = Workers / comm.specialists, AA = Workers / occ.specialists, ES_pop = Workers / `Total HHH`) %>% filter(Workers > 0)
+data_long_nomerc <- data_long[1:340,]
+ESAA_nomerc <- data_long_nomerc %>% group_by(Community) %>% mutate(comm.specialists = sum(Workers)) %>% group_by(Occupation) %>% 
+    mutate(occ.specialists = sum(Workers)) %>% ungroup %>% 
+    mutate(ES = Workers / comm.specialists, AA = Workers / occ.specialists, ES_pop = Workers / `Total HHH`) %>% filter(Workers > 0)
+worker.pop <- ESAA %>% dplyr::select(Community, comm.specialists, `Total HHH`, `Total Commoner HHH`, `Commoner Tributary HHH`) %>% distinct %>% mutate(specialization = comm.specialists / `Commoner Tributary HHH`)
+worker.pop_nomerc <- ESAA_nomerc %>% dplyr::select(Community, comm.specialists, `Total HHH`, `Total Commoner HHH`, `Commoner Tributary HHH`) %>% distinct %>% mutate(specialization = comm.specialists / `Commoner Tributary HHH`)
+```
+
+###Log-Linear OLS Model with Barrio Merchants
+
+
+
+$n = 20$
+Adjusted R-Squared:
+```{r}
+pop_model <- lm(log(comm.specialists) ~ log(`Total HHH`), data = worker.pop)
+summary(pop_model)$adj.r.squared
+```
+
+HC Parameter Estimates:
+```{r}
+#report estimated OLS model parameters using heteroskedasticity-consistent covariance matrix
+#"HC1" param replicates Stata's default settings using the "robust" function
+coeftest(pop_model, vcov = vcovHC(pop_model, "HC1"))
+```
+
+95% Confidence Intervals:
+```{r}
+#set HC1 covariance matrix as an object
+Cov<-vcovHC(pop_model, "HC1")
+
+#calculate and report 95% confidence interval using HC1 covariance matrix
+tt <-qt(c(0.025,0.975),summary(pop_model)$df[2])
+se <- sqrt(diag(Cov))
+ci <-coef(pop_model) + se %o% tt
+ci
+```
+
+
+
+```{r, message=FALSE,warning=FALSE}
+ggplot(worker.pop, aes(x=log(`Total HHH`), y=log(comm.specialists))) +
+geom_point(size=3, colour="black", shape=1) + 
+geom_smooth(fullrange=TRUE, method =lm, se=TRUE, colour="red", size=1) +
+geom_abline(mapping = NULL, data = NULL, slope = 1, intercept = -2.2, na.rm = FALSE, show.legend = NA, colour="black", size=1) +
+xlab("Log Population (Households)") +
+ylab("Log Total Occupations") +
+theme_bw() +
+theme(axis.text = element_text(size = 12, color="black")) +
+theme(axis.title.y = element_text(size = 14, face = "bold")) +
+theme(axis.title.x = element_text(size = 14, face = "bold"))
+```
+
+KS and Shapiro-Wilk parametric normality tests for the residuals -- using a Gaussian null hypothesis with the mean and variance of the sample -- failed to reject the null hypothesis. There is also no visible autocorrelation in the residual plot. 
+
+```{r}
+pop_model.resid <- resid(pop_model)
+shapiro.test(pop_model.resid)
+
+fit<-fitdistr(pop_model.resid,"normal")$estimate
+ks.test(pop_model.resid, "pnorm",fit[1],fit[2])
+```
+
+
+```{r}
+par(mfrow = c(1, 2))
+hist(pop_model$residuals)
+plot(pop_model$residuals)
+```
+
+###LOg-Linear OLS Model without merchants
+
+```{r}
+ggplot(worker.pop_nomerc, aes(x = log(`Total HHH`), y = log(comm.specialists)))+ theme_tufte() + geom_point(color = 'darkred') + geom_smooth(method = lm, se = FALSE, color = 'black')   
+#ggplot(worker.pop_nomerc, aes(x = `Total HHH`, y = comm.specialists))+ theme_tufte() + geom_point(color = 'darkred') + geom_smooth(method = 'nls', formula = 'y~a*x^b', start=list(a=1,b=1), se=FALSE, color = 'black')   
+pop_model2 <- lm(log(comm.specialists) ~ log(`Total HHH`), data = worker.pop_nomerc)
+summary(pop_model2)
+summary(pop_model2)$adj.r.squared
+plot(pop_model2$residuals)
+```
+
+###Use Commoner HHH with merchants still removed
+
+```{r}
+ggplot(worker.pop_nomerc, aes(x = log(`Total Commoner HHH`), y = log(comm.specialists)))+ theme_tufte() + geom_point(color = 'darkred') + geom_smooth(method = lm, se = FALSE, color = 'black')   
+#ggplot(worker.pop_nomerc, aes(x = `Total Commoner HHH`, y = comm.specialists))+ theme_tufte() + geom_point(color = 'darkred') + geom_smooth(method = 'nls', formula = 'y~a*x^b', start=list(a=1,b=1), se=FALSE, color = 'black')   
+pop_model3 <- lm(log(comm.specialists) ~ log(`Total Commoner HHH`), data = worker.pop_nomerc)
+summary(pop_model3)
+plot(pop_model3$residuals)
+```
+
+
+##Interpretations
+
+In short, none of the above regressions achieved a directly-proportional log-linear model (slope = 1), even though confidence intervals do include 1. Instead, all estimated models had superlinear estimated scaling coefficients, suggesting that larger Aztec towns had increasingly larger proportions of specialists than smaller towns.
+
+However, tweaking the data to compensate for errors did reduce the superlinearity of the estimated scaling coefficients. Removing the Barrio Merchant strong positive outlier from the dataset lowered the estimated slope and increased the correlation. This was warranted because with Barrio Merchants in the dataset, Santa Maria Acoxtla has nearly 100% specialists (as opposed to ~20% everywhere else).
+
+Likewise, using commoner population instead of total population lowers the estimated beta slope and increases correlation. Noble occupational specialization is not recorded in the MH, and noble populations are unevenly distributed among towns. The biggest, most specialized towns have very few nobles, anchoring the upper end of the graph, so removing noble population from all towns shifts many other towns down the x-axis, decreasing the slope of the OLS line. Unfortunately, there is no correlation between noble population and number of specialists (see below).
+
+Nevertheless, the slope estimates are fairly to 1, and 95% C.I.s substantially encompasses a slope of 1. This may be due to sampling error, the lack of agricultural specialization in the data, the lack of noble specializations in the data, or the absence of our missing rare occupations. Adding more data may reduce the estimated slope further.
+
+If the superlinear slopes were not produced by error in the data, then this would indicate IRS in occu specialization. This would suggest a crucial dynamism for Aztec settlements, which would have been rapidly specializing with pop growth. It would suggest that occupational specialization is a proxy for economic output in Aztec settlements, thus conforming to settlement scaling theory about IRS in urban economic outputs with respect to population. Why? because most people are employed only in the agricultural sector, so the fraction of non-agricultural specialists increases town productivity via Smithian-Agglomeration feedbacks.
+
+Alternatively, this IRS could be epiphenomenal of other factors. For example, if town size was geographically autocorrelated, then the IRS might be the result of core-periphery spatial structure. Likewise, the rapid depopulation of Huexotzinco c.1560 might have deflated the population faster than the occupational structure (hel in place by tribute demands).
+
+
+
+#Town Specialization and Population
+
+Regression of the proportion (%) of occupational specialists on population should not produce a strong correlation. Why? Specialization is an intensive metric that factors out scale, thereby removing the causal factor from the regressions performed above (Total Specialists vs Population). Scaling only works for extensive metrics, so we wouldnt expect a relationship between proportion (%) of specialists and population. We need to look to other causal variables -- like spatial distribution, environmental resources, groupings of occupations, noble+commoner demand, markets, merchants, etc. -- to explain the proportions of specialists among settlements.
+
+
+```{r}
+ggplot(worker.pop_nomerc, aes(x = log(`Total HHH`), y = log(specialization))) + theme_tufte() + geom_point(color = 'midnightblue') + 
+    geom_smooth(method = lm, se = FALSE, color = 'black')   
+s_model <- lm(log(specialization) ~ log(`Total HHH`), data = worker.pop) 
+summary(s_model)
+summary(s_model)$adj.r.squared
+plot(s_model$residuals)
+```
+
+
+
