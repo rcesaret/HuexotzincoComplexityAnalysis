@@ -1,0 +1,484 @@
+---
+title: "Aztec Product Space, Part 4 (AAD and SD)"
+author: "Rudolf Cesaretti"
+date: "September 23, 2019"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+# Setup
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+setwd("C:/Users/TJ McMote/Desktop/Joffa Complexity")
+require(knitr)
+# Set so that long lines in R will be wrapped:
+opts_chunk$set(tidy.opts=list(width.cutoff=80),tidy=TRUE)
+```
+
+```{r, message=FALSE,warning=FALSE }
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(data.table))
+library(ggthemes)
+library(Cairo)
+library(RColorBrewer)
+library(stringr)
+library(gtools) #provides combination function for edge list creation
+suppressPackageStartupMessages(library(igraph))
+suppressPackageStartupMessages(library(gridExtra))
+```
+
+```{r}
+data <- fread('./MdH_v5_RC.csv')
+data_short <- data %>% arrange(Community)
+
+data_long <- data_short %>% gather(Occupation, Workers, 55:80) 
+#data_long <- data_short %>% gather(Occupation, Workers, 57:80) 
+
+
+presence <- data_long %>% mutate(presence = ifelse(Workers > 0, 1, 0))
+
+total.specialists <- sum(presence$Workers, na.rm = T)
+total.population <- sum(data$TotalHH, na.rm = T)
+
+ESAAB <- presence %>% group_by(Community) %>% mutate(comm.specialists = sum(Workers), diversity = sum(presence), 
+		percent.specialists = sum(Workers) / Casados) %>% group_by(Occupation) %>% 
+    mutate(occ.specialists = sum(Workers, na.rm = T), ubiquity = sum(presence, na.rm = T)) %>% ungroup %>% 
+    mutate(ES = Workers / comm.specialists, AA = Workers / occ.specialists, ES_pop = Workers / TotalHH, Belassa = (Workers / comm.specialists) / (occ.specialists / total.specialists), 
+		Belassa_pop = (Workers / TotalHH) / (occ.specialists / total.population), SOI = (Workers / occ.specialists) / (TotalHH / total.population), AAD = (Workers / occ.specialists) / TotalHH, SD = Workers / TotalHH) %>%  filter(Belassa > 0) %>%  
+	mutate(log.Belassa = log(Belassa), log.AA = log(AA), log.ES = log(ES), log.ES_pop = log(ES_pop), log.Belassa_pop = log(Belassa_pop), log.SOI = log(SOI), log.AAD = log(AAD), log.SD = log(SD))
+ 
+```
+
+```{r}
+par(mfrow=c(1,2))
+plot(density(ESAAB$SOI))
+plot(density(log(ESAAB$SOI)))
+```
+
+```{r}
+par(mfrow=c(1,2))
+plot(density(ESAAB$Belassa))
+plot(density(ESAAB$log.Belassa))
+```
+
+```{r}
+par(mfrow=c(1,2))
+plot(density(ESAAB$Belassa_pop))
+plot(density(ESAAB$log.Belassa_pop))
+```
+
+
+
+```{r}
+#Belassa
+complete <- presence %>% select(Community, Occupation, presence)
+
+B.reduced.one <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(Belassa >= 1, 1, 0)) %>% select(Community, Occupation, presence)
+
+mean.index <- mean(ESAAB$Belassa)
+median.index <- median(ESAAB$Belassa)
+
+B.reduced.mean <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(Belassa >= mean.index, 1, 0)) %>% select(Community, Occupation, presence)
+
+B.reduced.median <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(Belassa >= median.index, 1, 0)) %>% select(Community, Occupation, presence)
+
+threshold <- mean(ESAAB$log.Belassa, na.rm = T) + sd(ESAAB$log.Belassa, na.rm = T)
+
+B.reduced.sigma <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(log.Belassa >= threshold, 1, 0)) %>% select(Community, Occupation, presence)
+
+#Belassa Pop
+
+Bp.reduced.one <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(Belassa_pop >= 1, 1, 0)) %>% select(Community, Occupation, presence)
+
+mean.index <- mean(ESAAB$Belassa)
+median.index <- median(ESAAB$Belassa)
+
+Bp.reduced.mean <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(Belassa_pop >= mean.index, 1, 0)) %>% select(Community, Occupation, presence)
+
+Bp.reduced.median <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(Belassa_pop >= median.index, 1, 0)) %>% select(Community, Occupation, presence)
+
+threshold <- mean(ESAAB$log.Belassa_pop, na.rm = T) + sd(ESAAB$log.Belassa_pop, na.rm = T)
+
+Bp.reduced.sigma <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(log.Belassa_pop >= threshold, 1, 0)) %>% select(Community, Occupation, presence)
+
+# SOI
+
+
+SOI.reduced.one <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(SOI >= 1, 1, 0)) %>% select(Community, Occupation, presence)
+
+mean.index <- mean(ESAAB$SOI)
+median.index <- median(ESAAB$SOI)
+
+SOI.reduced.mean <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(SOI >= mean.index, 1, 0)) %>% select(Community, Occupation, presence)
+
+SOI.reduced.median <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(SOI >= median.index, 1, 0)) %>% select(Community, Occupation, presence)
+
+threshold <- mean(ESAAB$log.SOI, na.rm = T) + sd(ESAAB$log.SOI, na.rm = T)
+
+SOI.reduced.sigma <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(log.SOI >= threshold, 1, 0)) %>% select(Community, Occupation, presence)
+
+# AAD
+
+AAD.reduced.one <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(AAD >= 1, 1, 0)) %>% select(Community, Occupation, presence)
+
+mean.index <- mean(ESAAB$AAD)
+median.index <- median(ESAAB$AAD)
+
+AAD.reduced.mean <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(AAD >= mean.index, 1, 0)) %>% select(Community, Occupation, presence)
+
+AAD.reduced.median <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(AAD >= median.index, 1, 0)) %>% select(Community, Occupation, presence)
+
+threshold <- mean(ESAAB$log.AAD, na.rm = T) + sd(ESAAB$log.AAD, na.rm = T)
+
+AAD.reduced.sigma <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(log.AAD >= threshold, 1, 0)) %>% select(Community, Occupation, presence)
+
+# SD
+
+SD.reduced.one <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(SD >= 1, 1, 0)) %>% select(Community, Occupation, presence)
+
+mean.index <- mean(ESAAB$SD)
+median.index <- median(ESAAB$SD)
+
+SD.reduced.mean <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(SD >= mean.index, 1, 0)) %>% select(Community, Occupation, presence)
+
+SD.reduced.median <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(SD >= median.index, 1, 0)) %>% select(Community, Occupation, presence)
+
+threshold <- mean(ESAAB$log.SD, na.rm = T) + sd(ESAAB$log.SD, na.rm = T)
+
+SD.reduced.sigma <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(log.SD >= threshold, 1, 0)) %>% select(Community, Occupation, presence)
+
+
+```
+
+
+```{r}
+occs <- c(unique(data_long$Occupation))
+
+edges <- data.frame(combinations(length(occs), 2, occs)) %>% mutate(occ1 = as.character(X1), 
+                                                                    occ2 = as.character(X2)) %>% select(occ1, occ2)
+edge.rows <- nrow(edges)
+```
+
+#Median Threshold Product Space Graphs
+
+```{r}
+# Median
+adjacency <- B.reduced.median %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+B.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+B.proximity <- proximity
+
+adjacency <- Bp.reduced.median %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+Bp.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+Bp.proximity <- proximity
+
+adjacency <- SOI.reduced.median %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+SOI.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+SOI.proximity <- proximity
+
+adjacency <- AAD.reduced.median %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+AAD.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+AAD.proximity <- proximity
+
+adjacency <- SD.reduced.median %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+SD.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+SD.proximity <- proximity
+```
+
+```{r}
+B.reduced.edges <- B.edge.list %>% filter(weight >= 0.3)
+Bp.reduced.edges <- Bp.edge.list %>% filter(weight >= 0.3)
+SOI.reduced.edges <- SOI.edge.list %>% filter(weight >= 0.3)
+AAD.reduced.edges <- AAD.edge.list %>% filter(weight >= 0.3)
+SD.reduced.edges <- SD.edge.list %>% filter(weight >= 0.3)
+
+workers <- data_long %>% select(Occupation, Workers) %>% group_by(Occupation) %>% summarize(Workers = sum(Workers))
+colors <- adjustcolor(c("light blue", "yellowgreen", 'orange', "dark red", "gold"), alpha=.6)
+
+B.net <- graph.data.frame(B.reduced.edges, directed = FALSE)
+Bp.net <- graph.data.frame(Bp.reduced.edges, directed = FALSE)
+SOI.net <- graph.data.frame(SOI.reduced.edges, directed = FALSE)
+AAD.net <- graph.data.frame(AAD.reduced.edges, directed = FALSE)
+SD.net <- graph.data.frame(SD.reduced.edges, directed = FALSE)
+
+V(B.net)$workers = as.character(workers$Workers[match(V(B.net)$name, workers$Occupation)])
+V(Bp.net)$workers = as.character(workers$Workers[match(V(Bp.net)$name, workers$Occupation)])
+V(SOI.net)$workers = as.character(workers$Workers[match(V(SOI.net)$name, workers$Occupation)])
+V(AAD.net)$workers = as.character(workers$Workers[match(V(AAD.net)$name, workers$Occupation)])
+V(SD.net)$workers = as.character(workers$Workers[match(V(SD.net)$name, workers$Occupation)])
+
+#B.cd <- leading.eigenvector.community(B.net)
+#Bp.cd <- leading.eigenvector.community(Bp.net)
+#SOI.cd <- leading.eigenvector.community(SOI.net)
+B.cd <- cluster_fast_greedy(B.net)
+Bp.cd <- cluster_fast_greedy(Bp.net)
+SOI.cd <- cluster_fast_greedy(SOI.net)
+AAD.cd <- cluster_fast_greedy(AAD.net)
+SD.cd <- cluster_fast_greedy(SD.net)
+
+V(B.net)$community <- B.cd$membership
+V(Bp.net)$community <- Bp.cd$membership
+V(SOI.net)$community <- SOI.cd$membership
+V(AAD.net)$community <- AAD.cd$membership
+V(SD.net)$community <- SD.cd$membership
+
+# minX <- rep(-Inf, vcount(net))
+# maxX <- rep(Inf, vcount(net))
+# minY <- rep(-875, vcount(net))
+# maxY <- rep(875, vcount(net))
+
+B.coords <- layout_with_fr(B.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+Bp.coords <- layout_with_fr(Bp.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+SOI.coords <- layout_with_fr(SOI.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+AAD.coords <- layout_with_fr(AAD.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+SD.coords <- layout_with_fr(SD.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+```
+
+
+```{r}
+plot(B.net, vertex.color=colors[V(B.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = sqrt(as.integer(V(B.net)$workers)), 
+     edge.width=E(B.net)$weight * 2,
+     layout = B.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - Balassa RCA")
+paste('Mean degree for Balassa is', round(mean(degree(B.net)), 1))
+
+plot(Bp.net, vertex.color=colors[V(Bp.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = sqrt(as.integer(V(Bp.net)$workers)), 
+     edge.width=E(Bp.net)$weight * 2,
+     layout = Bp.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - Balassa_Pop")
+paste('Mean degree for Balassa_pop is', round(mean(degree(B.net)), 1))
+
+plot(SOI.net, vertex.color=colors[V(SOI.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = sqrt(as.integer(V(SOI.net)$workers)), 
+     edge.width=E(SOI.net)$weight * 2,
+     layout = SOI.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - SOI")
+paste('Mean degree for SOI is', round(mean(degree(B.net)), 1))
+
+plot(AAD.net, vertex.color=colors[V(AAD.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = sqrt(as.integer(V(AAD.net)$workers)), 
+     edge.width=E(AAD.net)$weight * 2,
+     layout = AAD.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - AAD")
+paste('Mean degree for AAD is', round(mean(degree(B.net)), 1))
+
+plot(SD.net, vertex.color=colors[V(SD.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = sqrt(as.integer(V(SD.net)$workers)), 
+     edge.width=E(SD.net)$weight * 2,
+     layout = SD.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - SD")
+paste('Mean degree for SD is', round(mean(degree(B.net)), 1))
+```
+
+```{r}
+# Mean
+adjacency <- B.reduced.mean %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+B.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+B.proximity <- proximity
+
+adjacency <- Bp.reduced.mean %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+Bp.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+Bp.proximity <- proximity
+
+adjacency <- SOI.reduced.mean %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+SOI.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+SOI.proximity <- proximity
+
+adjacency <- AAD.reduced.mean %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+AAD.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+AAD.proximity <- proximity
+
+adjacency <- SD.reduced.mean %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+SD.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+SD.proximity <- proximity
+```
+
+```{r}
+B.reduced.edges <- B.edge.list %>% filter(weight >= 0)
+Bp.reduced.edges <- Bp.edge.list %>% filter(weight >= 0)
+SOI.reduced.edges <- SOI.edge.list %>% filter(weight >= 0)
+AAD.reduced.edges <- AAD.edge.list %>% filter(weight >= 0)
+SD.reduced.edges <- SD.edge.list %>% filter(weight >= 0)
+
+workers <- data_long %>% select(Occupation, Workers) %>% group_by(Occupation) %>% summarize(Workers = sum(Workers))
+colors <- adjustcolor(c("light blue", "yellowgreen", 'orange', "dark red", "gold"), alpha=.6)
+
+B.net <- graph.data.frame(B.reduced.edges, directed = FALSE)
+Bp.net <- graph.data.frame(Bp.reduced.edges, directed = FALSE)
+SOI.net <- graph.data.frame(SOI.reduced.edges, directed = FALSE)
+AAD.net <- graph.data.frame(AAD.reduced.edges, directed = FALSE)
+SD.net <- graph.data.frame(SD.reduced.edges, directed = FALSE)
+
+V(B.net)$workers = as.character(workers$Workers[match(V(B.net)$name, workers$Occupation)])
+V(Bp.net)$workers = as.character(workers$Workers[match(V(Bp.net)$name, workers$Occupation)])
+V(SOI.net)$workers = as.character(workers$Workers[match(V(SOI.net)$name, workers$Occupation)])
+V(AAD.net)$workers = as.character(workers$Workers[match(V(AAD.net)$name, workers$Occupation)])
+V(SD.net)$workers = as.character(workers$Workers[match(V(SD.net)$name, workers$Occupation)])
+
+#B.cd <- leading.eigenvector.community(B.net)
+#Bp.cd <- leading.eigenvector.community(Bp.net)
+#SOI.cd <- leading.eigenvector.community(SOI.net)
+B.cd <- cluster_fast_greedy(B.net)
+Bp.cd <- cluster_fast_greedy(Bp.net)
+SOI.cd <- cluster_fast_greedy(SOI.net)
+AAD.cd <- cluster_fast_greedy(AAD.net)
+SD.cd <- cluster_fast_greedy(SD.net)
+
+V(B.net)$community <- B.cd$membership
+V(Bp.net)$community <- Bp.cd$membership
+V(SOI.net)$community <- SOI.cd$membership
+V(AAD.net)$community <- AAD.cd$membership
+V(SD.net)$community <- SD.cd$membership
+
+# minX <- rep(-Inf, vcount(net))
+# maxX <- rep(Inf, vcount(net))
+# minY <- rep(-875, vcount(net))
+# maxY <- rep(875, vcount(net))
+
+B.coords <- layout_with_fr(B.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+Bp.coords <- layout_with_fr(Bp.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+SOI.coords <- layout_with_fr(SOI.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+AAD.coords <- layout_with_fr(AAD.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+SD.coords <- layout_with_fr(SD.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+```
+
+
+```{r}
+plot(B.net, vertex.color=colors[V(B.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = sqrt(as.integer(V(B.net)$workers)), 
+     edge.width=E(B.net)$weight * 2,
+     layout = B.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - Balassa RCA")
+paste('Mean degree for Balassa is', round(mean(degree(B.net)), 1))
+
+plot(Bp.net, vertex.color=colors[V(Bp.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = sqrt(as.integer(V(Bp.net)$workers)), 
+     edge.width=E(Bp.net)$weight * 2,
+     layout = Bp.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - Balassa_Pop")
+paste('Mean degree for Balassa_pop is', round(mean(degree(B.net)), 1))
+
+plot(SOI.net, vertex.color=colors[V(SOI.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = sqrt(as.integer(V(SOI.net)$workers)), 
+     edge.width=E(SOI.net)$weight * 2,
+     layout = SOI.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - SOI")
+paste('Mean degree for SOI is', round(mean(degree(B.net)), 1))
+
+plot(AAD.net, vertex.color=colors[V(AAD.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = sqrt(as.integer(V(AAD.net)$workers)), 
+     edge.width=E(AAD.net)$weight * 2,
+     layout = AAD.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - AAD")
+paste('Mean degree for AAD is', round(mean(degree(B.net)), 1))
+
+plot(SD.net, vertex.color=colors[V(SD.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = sqrt(as.integer(V(SD.net)$workers)), 
+     edge.width=E(SD.net)$weight * 2,
+     layout = SD.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - SD")
+paste('Mean degree for SD is', round(mean(degree(B.net)), 1))
+```

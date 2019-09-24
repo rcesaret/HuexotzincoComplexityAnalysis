@@ -1,0 +1,510 @@
+---
+title: "Aztec Product Space, Part 3"
+author: "Rudolf Cesaretti"
+date: "September 14, 2019"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+#Overview
+
+Based on the results of the prior product space analyses, new product space analyses are conducted using targeted new metrics. The Belassa Index was the best performing metric, so it is retained. ES is no longer used, and AA is adapted into a new metric (SOI) that combines desirable features of Belassa and AA together. Finally, another metric, Belassa_pop, is introduced, where the Belassa Index is calculated using population instead of the number of workers (occupational specialists). 
+
+This suite of new metrics produces better results
+
+New data is also added in this analysis, considerably improving results. This confirms that the full dataset (when finished) will be much better. 
+
+#New Metrics
+
+##The Location Quotient and Economic Base Analysis
+
+The aim of our metrics are to provide a proxy that can discern whether occupations are focused on export or meeting local demand. The Belassa Index (BI), or 'Revealed Comparative Advantage' (RCA), of product space analysis was originally adapted from the Location Quotient (LQ) of economic base analysis. Whereas product space analysis uses BI/RCA to measure exports among nations, economic base analysis uses LQ to measure differences in employment among cities and regions. The two metrics are identical. Whereas BI/RCA is given by 
+$$
+RCA_{ij} = \frac{\frac{E_{ji}}{\sum_iE_{ij}}}{\frac{\sum_jE_{ji}}{\sum_j\sum_iE_{ji}}}
+$$ 
+where $X_{ij}$ is the exports of industry $i$ at location $j$. LQ is given by
+$$
+LQ_{ij} = \frac{\frac{E_{ji}}{\sum_jE_{ij}}}{\frac{\sum_jE_{ji}}{\sum_i\sum_jE_{ji}}}
+$$ 
+where $X_{ij}$ is employment in industry $i$ at location $j$.
+
+The numerator is the fraction of local employment/output in a given industry, while the denominator is the 'global' average employment/output. Whereas the denominator of RCA/BI is really a global average among nations, the 'global' average of a LQ is merely the average of the integrated market (i.e. the division of labor)-commonly proxied by the national average in economic base analysis of regions.
+
+To analyze the structure of the division of labor, economic base analysis divides the industries of an area into 'basic' and 'nonbasic' industries. Basic industries are specialized "export" industries (i.e. serving demand beyond the local area even if physical products are not exported) that serve as the core of economic activity. Non-basic industries only serve local demand, supported by income brought into the locale by basic industries (Quintero, 2007: 19-23). In this way, employment serves as a proxy for for 'export' (i.e. 'basic') industries in the early 20th century before the existence of regional statistics on interregional economic flows. This likewise applies to 16th century Mexico. 
+
+The LQ is used to divide the employment of each industry (/occupation) into its basic and nonbasic components using the denominator of the LQ, representing the average of the integrated market. The fraction of employment exceeding the average is taken to be the basic (export-driven) employment in the industry, while the fraction of employment below the average is the nonbasic proportion (meeting local demand). Basic employment is thus identified by LQs greater than 1.0, and the location j basic employment in industry i, $BE_{ij}$, is given by
+$$
+BE_{ij} = ( \frac{E_{ji}}{\sum_jE_{ij}} - \frac{\sum_jE_{ji}}{\sum_i\sum_jE_{ji}}) \sum_jE_{ij} = E_{ji}(1 - \frac{1}{LQ_{ij}})
+$$
+and nonbasic employment is merely total employment minus basic employment. 
+
+##Blindspots of the Belassa Index
+
+There are a number of potential issues with using LQ in our analysis of the 16th century Aztec division of labor from the MdH. Accounting for these in our new metrics might yeild a better analysis. 
+
+###Representative Global Averages
+
+The assumption of BI and LQ is that below the global average (= 1) or some threshold employment meets local demand, while above the global average / threshold that employment is meant for export. This is based on the idea that the global average is a proxy for the average of the integrated market (i.e. the division of labor)
+
+However, the small size of our sample is not representative of the wider division of labor into which Huexotzinco was integrated. Our global average is restricted to the province of Huexotzinco, and Huexotzinco was tied by export trade relations to both immediate neighbors and a broad range of markets across central Mexico (and probably even wider). If the Huexotzinco province exported much of what it produced in some industry, then we wouldn't detect this without an average representative of the integrated market (i.e. a sample extending across other provinces)! It is therefore difficult to detect whether production is to meet local demand or export.
+
+###Global Averages are Misleading
+
+According to Isard (1998), the use of an average for the LQ denominator can lead to incorrect or misleading interpretations, greatly impact the accuracy and validity of the metric. For a number of reasons, he argues that it is a common fallacy interpret LQs less than unity as importers of the output of industry i, and LQs greater than unity as exporters of the output of industry i. First, the tastes and expenditure patterns of households (propensities to consume) differ among locales and regions, so the relevant threshold for export/import will accordingly deviate from the national average across space. The same is true for industry consumers, as local basic production may be consumed by other local industries. Moreover, differences in income and thus demand also differ among locales, so LQ > 1 for elastic goods can be entirely nonbasic in a wealthy locale (and vise versa). This highlights the inadequacies of using an average for the denominator to serve as a threshold for identifying 
+
+Isard (1998) therefore suggests that LQ metrics be carefully adapted to the specific industries, regions, data, and research questions being addressed. In particular, he suggests that the LQ denominator be modified for specific analyses, and that local values replace global averages. A denominator of spatial area would address questions about spatial concentration, and population or income (average; total) would address questions about demand. Local thresholds could also be designed for occupations or industries (groups of occupations) based on proxy data, analysis, or theoretical expectations.
+
+###Scale is Factored-Out
+
+The double intensive LQ metric is primarily intended to calculate fractions of basic vs nonbasic employment. Scale is factored out in order to calculate relative proportions of basic/nonbasic employment, but is then immediately added back in by calculating the overall (scalar) industry basic employment in the locale. 
+
+This contrasts sharply with using the Belassa index by itself as a metric for measuring proximity in product space analysis. The Balassa Index/ RCA nicely proxies comparative advantages (CA) in exports, but do not also consider aggregate advantage (AA; i.e. greater productivity). CA is indifferent to scale, and therefore RCA factors out scale via a 'where the numerator and denominator are both intensive. Yet countries with AA in some industry are almost always major exporters of its products. If we assume that (A) the aggregate amount (i.e. price) of product exports reflects the scale of that industry, and we further assume that (B) this is proportional to economies of scale in said industries, then countries with greater exports in an industry also likely have AA's in those industries. 
+
+The problem is that the double intensive Belassa Index is biased against economies with greater scale and complexity. A tiny numerator (% total exports) in a large country could represent a massive global export industry with AA, but it will never have a high Belassa index if the global average (denominator) is larger. In this way, the double intensive metric is biased against large and complex economies because their numerators are deflated. Conversely, the double intensive metric is biased towards smaller and simpler export economies because their numerators are inflated. 
+
+##Designing a New Metric
+
+We want to design a new metric that
+
+a)	is enough like the Belassa Index to identify export vs local output
+
+b)	has a locally-variable denominator
+
+c)	incorporates scale in the metric rather than factoring it out
+
+In addition, we want to incorporate lessons learned from the failure of AA and ES in the prior product space analysis. The new metric should therefore also not introduce systematic selection biases in the data progressive thresholds should via progressive thresholds (like settlement scale for AA, or occupational scale for ES). 
+
+###The Surplus Output Index (SOI)
+
+To accomplish the above objectives, I here introduce a proxy metric called "the Surplus Output Index (SOI)" that integrates AA into the LQ/Belassa Index. SOI is the proportion of total supply (output) that is local relative to the proportion of total demand that is local. Supply/output is proxied by employment, while demand is proxied by population (I am currently constructing a "demand index" that will weight socioeconomic categories in the MdH to produce a better demand proxy than population). SOI takes the form of a scale-sensitive, double-intensive metric, given by
+$$
+SOI_{ij} = \frac{\% Output Local}{\% Demand Local} = \frac{\frac{E_{ij}}{\sum_iE_{ij}}}{\frac{D_{j}}{\sum_jD}} = \frac{AA_{ij}}{\frac{D_{j}}{\sum_jD}} 
+$$ 
+where $E_{ij}$ is employment in industry $i$ at location $j$, and $D_{j}$ is demand at location $j$. The numerator of SOI is our AA metric for aggregate advantage, but it is now standardized by the proportion of demand (population) that is local. Rather than a global average, the denomenator thus changes for each locale. Settlement scale is both directly incorporated in the form of AA, but also standardized against via the denomenator. The double-intensive metric also standardizes for industry scale, making the SOI values of different-sized industries directly comparable.
+
+As with LQ/Belassa, SOI also uses unity as a very coarse dividing line for diagnosing local production vs surplus output production for export. When $SOI_{ij} > 1$ this suggests that location $j$ is a net exporter of the output of industry $i$, while SOI less than unity suggests that the industry only produces output for local demand. As noted by Isard (1998), this is not actually the case due to various local variables, but this provides a heuristic for interpretation. The main concern is the total demand term, $\sum_jD$. If products were traded beyond Huexotzinco (we know they were), then $\sum_jD$ will be higher than the sum of all demand in Huexotzinco province. This would shift the heuristc threshold for export to below unity.
+
+###The Belassa_pop Index
+
+In addition to SOI, we can also directly modify the Belassa Index so that it accounts for local demand. As suggested by Isard (1998), we can use population as the base of the numerator and the denomenator (as a proxy for demand), rather than using total occupational specialists ("workers"). This Belassa_pop metric is given by 
+$$
+Bp_{ij} = \frac{\frac{E_{ji}}{D_{j}}}{\frac{\sum_iE_{ji}}{\sum_jD}}
+$$ 
+where $E_{ij}$ is employment in industry $i$ at location $j$, and $D_{j}$ is demand at location $j$ proxied by population.
+
+
+# Setup
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+setwd("C:/Users/TJ McMote/Desktop/Joffa Complexity")
+require(knitr)
+# Set so that long lines in R will be wrapped:
+opts_chunk$set(tidy.opts=list(width.cutoff=80),tidy=TRUE)
+```
+
+```{r, message=FALSE,warning=FALSE }
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(data.table))
+library(ggthemes)
+library(Cairo)
+library(RColorBrewer)
+library(stringr)
+library(gtools) #provides combination function for edge list creation
+suppressPackageStartupMessages(library(igraph))
+suppressPackageStartupMessages(library(gridExtra))
+```
+
+```{r}
+data <- fread('./MdH_v5_RC.csv')
+data_short <- data %>% arrange(Community)
+
+data_long <- data_short %>% gather(Occupation, Workers, 55:80) 
+#data_long <- data_short %>% gather(Occupation, Workers, 57:80) 
+
+
+presence <- data_long %>% mutate(presence = ifelse(Workers > 0, 1, 0))
+
+total.specialists <- sum(presence$Workers, na.rm = T)
+total.population <- sum(data$TotalHH, na.rm = T)
+
+ESAAB <- presence %>% group_by(Community) %>% mutate(comm.specialists = sum(Workers), diversity = sum(presence), 
+		percent.specialists = sum(Workers) / Casados) %>% group_by(Occupation) %>% 
+    mutate(occ.specialists = sum(Workers, na.rm = T), ubiquity = sum(presence, na.rm = T)) %>% ungroup %>% 
+    mutate(ES = Workers / comm.specialists, AA = Workers / occ.specialists, ES_pop = Workers / TotalHH, Belassa = (Workers / comm.specialists) / (occ.specialists / total.specialists), 
+		Belassa_pop = (Workers / TotalHH) / (occ.specialists / total.population), SOI = (Workers / occ.specialists) / (TotalHH / total.population)) %>%  filter(Belassa > 0) %>%  
+	mutate(log.Belassa = log(Belassa), log.AA = log(AA), log.ES = log(ES), log.ES_pop = log(ES_pop), log.Belassa_pop = log(Belassa_pop), log.SOI = log(SOI))
+ 
+```
+
+```{r}
+par(mfrow=c(1,2))
+plot(density(ESAAB$SOI))
+plot(density(log(ESAAB$SOI)))
+```
+
+```{r}
+par(mfrow=c(1,2))
+plot(density(ESAAB$Belassa))
+plot(density(ESAAB$log.Belassa))
+```
+
+```{r}
+par(mfrow=c(1,2))
+plot(density(ESAAB$Belassa_pop))
+plot(density(ESAAB$log.Belassa_pop))
+```
+
+
+
+```{r}
+#Belassa
+complete <- presence %>% select(Community, Occupation, presence)
+
+B.reduced.one <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(Belassa >= 1, 1, 0)) %>% select(Community, Occupation, presence)
+
+mean.index <- mean(ESAAB$Belassa)
+median.index <- median(ESAAB$Belassa)
+
+B.reduced.mean <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(Belassa >= mean.index, 1, 0)) %>% select(Community, Occupation, presence)
+
+B.reduced.median <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(Belassa >= median.index, 1, 0)) %>% select(Community, Occupation, presence)
+
+threshold <- mean(ESAAB$log.Belassa, na.rm = T) + sd(ESAAB$log.Belassa, na.rm = T)
+
+B.reduced.sigma <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(log.Belassa >= threshold, 1, 0)) %>% select(Community, Occupation, presence)
+
+#Belassa Pop
+
+Bp.reduced.one <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(Belassa_pop >= 1, 1, 0)) %>% select(Community, Occupation, presence)
+
+mean.index <- mean(ESAAB$Belassa)
+median.index <- median(ESAAB$Belassa)
+
+Bp.reduced.mean <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(Belassa_pop >= mean.index, 1, 0)) %>% select(Community, Occupation, presence)
+
+Bp.reduced.median <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(Belassa_pop >= median.index, 1, 0)) %>% select(Community, Occupation, presence)
+
+threshold <- mean(ESAAB$log.Belassa_pop, na.rm = T) + sd(ESAAB$log.Belassa_pop, na.rm = T)
+
+Bp.reduced.sigma <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(log.Belassa_pop >= threshold, 1, 0)) %>% select(Community, Occupation, presence)
+
+# SOI
+
+
+SOI.reduced.one <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(SOI >= 1, 1, 0)) %>% select(Community, Occupation, presence)
+
+mean.index <- mean(ESAAB$SOI)
+median.index <- median(ESAAB$SOI)
+
+SOI.reduced.mean <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(SOI >= mean.index, 1, 0)) %>% select(Community, Occupation, presence)
+
+SOI.reduced.median <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(SOI >= median.index, 1, 0)) %>% select(Community, Occupation, presence)
+
+threshold <- mean(ESAAB$log.SOI, na.rm = T) + sd(ESAAB$log.SOI, na.rm = T)
+
+SOI.reduced.sigma <- ESAAB %>% select(-presence) %>% mutate(presence = if_else(log.SOI >= threshold, 1, 0)) %>% select(Community, Occupation, presence)
+
+```
+
+
+```{r}
+occs <- c(unique(data_long$Occupation))
+
+edges <- data.frame(combinations(length(occs), 2, occs)) %>% mutate(occ1 = as.character(X1), 
+                                                                    occ2 = as.character(X2)) %>% select(occ1, occ2)
+edge.rows <- nrow(edges)
+```
+
+#Median Threshold Product Space Graphs
+
+```{r}
+# Median
+adjacency <- B.reduced.median %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+B.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+B.proximity <- proximity
+
+adjacency <- Bp.reduced.median %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+Bp.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+Bp.proximity <- proximity
+
+adjacency <- SOI.reduced.median %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+SOI.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+SOI.proximity <- proximity
+```
+
+```{r}
+B.reduced.edges <- B.edge.list %>% filter(weight >= 0.3)
+Bp.reduced.edges <- Bp.edge.list %>% filter(weight >= 0.3)
+SOI.reduced.edges <- SOI.edge.list %>% filter(weight >= 0.3)
+
+workers <- data_long %>% select(Occupation, Workers) %>% group_by(Occupation) %>% summarize(Workers = sum(Workers))
+colors <- adjustcolor(c("light blue", "yellowgreen", 'orange', "dark red", "gold"), alpha=.6)
+
+B.net <- graph.data.frame(B.reduced.edges, directed = FALSE)
+Bp.net <- graph.data.frame(Bp.reduced.edges, directed = FALSE)
+SOI.net <- graph.data.frame(SOI.reduced.edges, directed = FALSE)
+
+V(B.net)$workers = as.character(workers$Workers[match(V(B.net)$name, workers$Occupation)])
+V(Bp.net)$workers = as.character(workers$Workers[match(V(Bp.net)$name, workers$Occupation)])
+V(SOI.net)$workers = as.character(workers$Workers[match(V(SOI.net)$name, workers$Occupation)])
+
+#B.cd <- leading.eigenvector.community(B.net)
+#Bp.cd <- leading.eigenvector.community(Bp.net)
+#SOI.cd <- leading.eigenvector.community(SOI.net)
+B.cd <- cluster_fast_greedy(B.net)
+Bp.cd <- cluster_fast_greedy(Bp.net)
+SOI.cd <- cluster_fast_greedy(SOI.net)
+
+V(B.net)$community <- B.cd$membership
+V(Bp.net)$community <- Bp.cd$membership
+V(SOI.net)$community <- SOI.cd$membership
+
+# minX <- rep(-Inf, vcount(net))
+# maxX <- rep(Inf, vcount(net))
+# minY <- rep(-875, vcount(net))
+# maxY <- rep(875, vcount(net))
+
+B.coords <- layout_with_fr(B.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+Bp.coords <- layout_with_fr(Bp.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+SOI.coords <- layout_with_fr(SOI.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+```
+
+
+```{r}
+plot(B.net, vertex.color=colors[V(B.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = sqrt(as.integer(V(B.net)$workers)), 
+     edge.width=E(B.net)$weight * 2,
+     layout = B.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - Balassa RCA")
+paste('Mean degree for Balassa is', round(mean(degree(B.net)), 1))
+
+plot(Bp.net, vertex.color=colors[V(Bp.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = sqrt(as.integer(V(Bp.net)$workers)), 
+     edge.width=E(Bp.net)$weight * 2,
+     layout = Bp.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - Balassa_Pop")
+paste('Mean degree for Balassa_pop is', round(mean(degree(B.net)), 1))
+
+plot(SOI.net, vertex.color=colors[V(SOI.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = sqrt(as.integer(V(SOI.net)$workers)), 
+     edge.width=E(SOI.net)$weight * 2,
+     layout = SOI.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - SOI")
+paste('Mean degree for SOI is', round(mean(degree(B.net)), 1))
+```
+
+#Mean Threshold Product Space Graphs
+
+```{r}
+# Median
+adjacency <- B.reduced.mean %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+B.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+B.proximity <- proximity
+
+adjacency <- Bp.reduced.mean %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+Bp.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+Bp.proximity <- proximity
+
+adjacency <- SOI.reduced.mean %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+SOI.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+SOI.proximity <- proximity
+```
+
+```{r}
+B.reduced.edges <- B.edge.list %>% filter(weight >= 0)
+Bp.reduced.edges <- Bp.edge.list %>% filter(weight >= 0)
+SOI.reduced.edges <- SOI.edge.list %>% filter(weight >= 0)
+
+workers <- data_long %>% select(Occupation, Workers) %>% group_by(Occupation) %>% summarize(Workers = sum(Workers))
+colors <- adjustcolor(c("light blue", "yellowgreen", 'orange', "dark red", "gold"), alpha=.6)
+
+B.net <- graph.data.frame(B.reduced.edges, directed = FALSE)
+Bp.net <- graph.data.frame(Bp.reduced.edges, directed = FALSE)
+SOI.net <- graph.data.frame(SOI.reduced.edges, directed = FALSE)
+
+V(B.net)$workers = as.character(workers$Workers[match(V(B.net)$name, workers$Occupation)])
+V(Bp.net)$workers = as.character(workers$Workers[match(V(Bp.net)$name, workers$Occupation)])
+V(SOI.net)$workers = as.character(workers$Workers[match(V(SOI.net)$name, workers$Occupation)])
+
+#B.cd <- leading.eigenvector.community(B.net)
+#Bp.cd <- leading.eigenvector.community(Bp.net)
+#SOI.cd <- leading.eigenvector.community(SOI.net)
+B.cd <- cluster_fast_greedy(B.net)
+Bp.cd <- cluster_fast_greedy(Bp.net)
+SOI.cd <- cluster_fast_greedy(SOI.net)
+
+V(B.net)$community <- B.cd$membership
+V(Bp.net)$community <- Bp.cd$membership
+V(SOI.net)$community <- SOI.cd$membership
+
+# minX <- rep(-Inf, vcount(net))
+# maxX <- rep(Inf, vcount(net))
+# minY <- rep(-875, vcount(net))
+# maxY <- rep(875, vcount(net))
+
+B.coords <- layout_with_fr(B.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+Bp.coords <- layout_with_fr(Bp.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+SOI.coords <- layout_with_fr(SOI.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+```
+
+
+```{r}
+plot(B.net, vertex.color=colors[V(B.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = sqrt(as.integer(V(B.net)$workers)), 
+     edge.width=E(B.net)$weight * 2,
+     layout = B.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - Balassa RCA")
+paste('Mean degree for Balassa is', round(mean(degree(B.net)), 1))
+
+plot(Bp.net, vertex.color=colors[V(Bp.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = sqrt(as.integer(V(Bp.net)$workers)), 
+     edge.width=E(Bp.net)$weight * 2,
+     layout = Bp.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - Balassa_Pop")
+paste('Mean degree for Balassa_pop is', round(mean(degree(B.net)), 1))
+
+plot(SOI.net, vertex.color=colors[V(SOI.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = sqrt(as.integer(V(SOI.net)$workers)), 
+     edge.width=E(SOI.net)$weight * 2,
+     layout = SOI.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - SOI")
+paste('Mean degree for SOI is', round(mean(degree(B.net)), 1))
+```
+
+#Interpretations and Conclusions
+
+These results are extremely promising becuase the graphs are so interpretable. 
+
+The product space graphs for SOI and Belassa are also quite similar, suggesting that there is strong patterning in the data. The differences between SOI and Belassa highlight the differences between incorporating scale vs. not incorporating scale
+
+Because it completely excludes scale, the Belassa Index highlights similarities in the patterns of spatial distribution (i.e. co-location, overlap) more faithfully. This is best seen in the Median threshold Belassa graph with edges >= 0.3. This graph exhibits a northern cluster, central cluster, and lowland cluster, all tied together by by a central axis of larger, more widespread professions (Doctors, Wood Workers and Potters). A separate graph component is comprised Pochteca Merchants and Paper Makers (tied by the single town of Acxotla) has drifted off in space. 
+
+By including scale, SOI graphs are interconnected by a larger number of strong edges. This is best seen by comparing the SOI and Belassa graphs for Median threshold with edges >= 0.3. Here we have a core central cluster and a northern cluster, each of which are broken into two subcomponents. The central cluster is divided into a dense core and a lowland periphery comprised of rarer occupations. The northern cluster is broken into its own dense core and a peripheral branch representing the (central) ocotepec settlement. As with Belassa, a separate graph component is comprised of Pochteca Merchants and Paper Makers (tied by the single town of Acxotla).
+
+The spatial nature of these patterns highlights the local/subregional "lumpiness" of the division of labor compared to Western ones.
+
+A similar but different result is achieved by Belassa_pop, in which ties are fewer but more well-mixed. The groupings of Belassa_pop (Median >= 0.3) are very similar to those of SOI (Mean), and these are the most intriguing. The central cluster contains simple commoner utilitarian crafts, while the peripheral cluster is noble skille dcrafts and service professions. As before, both graphs also have a northern cluster. 
+
+So are the patterns merely spatial? No. The sample is small, proximity based on co-location, and there is strong spatial autocorrelation, so space will inevitably be a major factor. But SOI (Mean) and Belassa_pop (Median >= 0.3) illustrate differences in industries -- simple commoner utilitarian goods production, skilled noble goods production, and the northern group is a combination of primary production (woodland) and utilitarian goods production. As such, we are steadily moving towards a product space graph that identifies industry groupings.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,371 @@
+---
+title: "Aztec Product Space, Part 2"
+author: "Rudolf Cesaretti"
+date: "September 12, 2019"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+#Overview
+
+Here, I simply interpret the product space analyses authored by Joffa. The accompanying R-markdown document contains my modified product space analysis based on the findings here. 
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+setwd("C:/Users/TJ McMote/Desktop/Joffa Complexity")
+require(knitr)
+# Set so that long lines in R will be wrapped:
+opts_chunk$set(tidy.opts=list(width.cutoff=80),tidy=TRUE)
+```
+
+```{r }
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(data.table))
+library(ggthemes)
+library(Cairo)
+library(RColorBrewer)
+library(stringr)
+library(gtools) #provides combination function for edge list creation
+suppressPackageStartupMessages(library(igraph))
+suppressPackageStartupMessages(library(gridExtra))
+```
+
+```{r}
+data <- fread('./MdH_v3_RC.csv')
+data_short <- data %>% 
+    dplyr::select(-Runaways, -Deaths,  -Market, -`Landholding HHH`, -`Renting HHH`, -`Farming HHH`) %>% 
+    filter(Community != 'Total') %>% arrange(Community)
+data_long <- data_short %>% gather(Occupation, Workers, 7:25) 
+#paste('Number of occupations:', length(unique(data_long$Occupation)))
+```
+
+```{r}
+presence <- data_long %>% mutate(presence = ifelse(Workers > 0, 1, 0))
+diversity <- presence %>% group_by(Community) %>% mutate(diversity = sum(presence)) %>% 
+    dplyr::select(Community, Region, `Total HHH`, `Total Commoner HHH`, Total, diversity) %>% distinct %>% ungroup
+	
+presence <- data_long %>% mutate(presence = ifelse(Workers > 0, 1, 0))
+diversity_nomerc <- presence %>% group_by(Community) %>% mutate(diversity = sum(presence)) %>% 
+    dplyr::select(Community, Region, `Total HHH`, `Total Commoner HHH`, Total, diversity) %>% distinct %>% ungroup
+diversity_nomerc[17,5] <- 19
+diversity_nomerc[17,6] <- 6
+```
+
+```{r}
+ubiquity <- presence %>% group_by(Occupation) %>% mutate(`Total Workers` = sum(Workers), ubiquity = sum(presence)) %>% 
+    dplyr::select(Occupation, `Total Workers`, ubiquity) %>% distinct %>% ungroup
+ubiquity_nomerc <- ubiquity[1:18,]
+```
+
+
+```{r}
+ESAA <- data_long %>% group_by(Community) %>% mutate(comm.workers = sum(Workers)) %>% group_by(Occupation) %>% 
+    mutate(occ.workers = sum(Workers)) %>% ungroup %>% 
+    mutate(ES = Workers / comm.workers, AA = Workers / occ.workers, ES_pop = Workers / `Total HHH`) %>% filter(Workers > 0)
+```
+
+```{r}
+total.workers <- sum(data_long$Workers)
+balassa <- data_long %>% group_by(Community) %>% mutate(comm.workers = sum(Workers)) %>% group_by(Occupation) %>% 
+    mutate(occ.workers = sum(Workers)) %>% 
+    ungroup %>% mutate(index = (Workers / comm.workers) / (occ.workers / total.workers)) %>% 
+    select(Community, Occupation, index) %>% filter(index > 0) %>% mutate(log.index = log(index))
+```
+
+```{r}
+ESAAp <- ESAA %>% mutate(log.AA = log(AA), log.ES = log(ES))
+```
+
+```{r}
+#Apply thesholds to prune adjacency matrix:
+complete <- presence %>% select(Community, Occupation, presence)
+
+B.reduced.one <- balassa %>% mutate(presence = if_else(index >= 1, 1, 0)) %>% select(Community, Occupation, presence)
+
+mean.index <- mean(balassa$index)
+median.index <- median(balassa$index)
+
+B.reduced.mean <- balassa %>% mutate(presence = if_else(index >= mean.index, 1, 0)) %>% select(Community, Occupation, presence)
+B.reduced.median <- balassa %>% mutate(presence = if_else(index >= median.index, 1, 0)) %>% select(Community, Occupation, presence)
+
+threshold <- mean(balassa$log.index) + sd(balassa$log.index)
+
+B.reduced.sigma <- balassa %>% mutate(presence = if_else(log.index >= threshold, 1, 0)) %>% select(Community, Occupation, presence)
+
+B.complete <- balassa %>% mutate(presence = if_else(index > 0, 1, 0)) %>% select(Community, Occupation, presence)
+```
+
+```{r}
+mean.AA <- mean(ESAA$AA)
+median.AA <- median(ESAA$AA)
+
+AA.reduced.mean <- ESAA %>% mutate(presence = if_else(AA >= mean.AA, 1, 0)) %>% select(Community, Occupation, presence)
+AA.reduced.median <- ESAA %>% mutate(presence = if_else(AA >= median.AA, 1, 0)) %>% select(Community, Occupation, presence)
+
+threshold <- mean(ESAAp$log.AA) + sd(ESAAp$log.AA)
+
+AA.reduced.sigma <- ESAAp %>% mutate(presence = if_else(log.AA >= threshold, 1, 0)) %>% select(Community, Occupation, presence)
+
+AA.complete <- ESAA %>% mutate(presence = if_else(AA > 0, 1, 0)) %>% select(Community, Occupation, presence)
+```
+
+```{r}
+mean.ES <- mean(ESAA$ES)
+median.ES <- median(ESAA$ES)
+
+ES.reduced.mean <- ESAA %>% mutate(presence = if_else(ES >= mean.ES, 1, 0)) %>% select(Community, Occupation, presence)
+ES.reduced.median <- ESAA %>% mutate(presence = if_else(ES >= median.ES, 1, 0)) %>% select(Community, Occupation, presence)
+
+threshold <- mean(ESAAp$log.ES) + sd(ESAAp$log.ES)
+
+ES.reduced.sigma <- ESAAp %>% mutate(presence = if_else(log.ES >= threshold, 1, 0)) %>% select(Community, Occupation, presence)
+
+ES.complete <- ESAA %>% mutate(presence = if_else(ES > 0, 1, 0)) %>% select(Community, Occupation, presence)
+```
+
+```{r}
+occs <- c(unique(data_long$Occupation))
+
+edges <- data.frame(combinations(length(occs), 2, occs)) %>% mutate(occ1 = as.character(X1), 
+                                                                    occ2 = as.character(X2)) %>% select(occ1, occ2)
+edge.rows <- nrow(edges)
+```
+
+```{r}
+# MEAN
+adjacency <- B.reduced.mean %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+B.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+B.proximity <- proximity
+
+adjacency <- AA.reduced.mean %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+AA.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+AA.proximity <- proximity
+
+adjacency <- ES.reduced.mean %>% spread(Occupation, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    occ1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    occ2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / occ1, co.occur / occ2)
+}
+ES.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+ES.proximity <- proximity
+```
+
+
+```{r}
+par(mfrow=c(3,2))
+hist(B.edge.list$weight)
+plot(density(B.edge.list$weight))
+hist(AA.edge.list$weight)
+plot(density(AA.edge.list$weight))
+hist(ES.edge.list$weight)
+plot(density(ES.edge.list$weight))
+
+paste('Mean Belassa edge weight is ', mean(B.edge.list$weight))
+paste('Mean AA edge weight is ', mean(AA.edge.list$weight))
+paste('Mean ES edge weight is ', mean(ES.edge.list$weight))
+
+paste('Number of Belassa edges is ', nrow(B.edge.list))
+paste('Number of AA edges is ', nrow(AA.edge.list))
+paste('Number of ES edges is ', nrow(ES.edge.list))
+
+```
+
+```{r}
+
+par(mfrow=c(3,2))
+hist(B.proximity)
+plot(density(B.proximity[!is.na(B.proximity)]))
+hist(AA.proximity)
+plot(density(AA.proximity[!is.na(AA.proximity)]))
+hist(ES.proximity)
+plot(density(ES.proximity[!is.na(ES.proximity)]))
+
+paste('Mean Belassa proximity is ', mean(B.proximity[!is.na(B.proximity)]))
+paste('Mean AA proximity is ', mean(AA.proximity[!is.na(AA.proximity)]))
+paste('Mean ES proximity is ', mean(ES.proximity[!is.na(ES.proximity)]))
+```
+
+# Product Space Graph Scale
+
+The three different metrics produce differently-sized networks. This reflects differences in the number of co-occurances of above-threshold metric values in the same town. As seen in the graphs below, AA consistently has considerably more edges than ES or Belassa at all thresshold levels. This is true even though the thresholds remove almost the exact same number of metric scores for all three metrics. This means that there are many more 'strong' AA co-occurances than for Belassa or ES, which appears to be driven by scale effects (i.e. large cities will tend to have larger AA in many occupations than smaller occupations). 
+
+ES has the fewest 'strong' co-occurances because the metric is not standardized for scale among industries. As a result, occupations with low percentages (small or rare occupations) will be filtered out by the threshold, leading to systematic biases.
+
+```{r}
+falloff <- fread('./threshold_metric_falloff.csv')
+
+ggplot(data=falloff, aes(x=Threshold, y=EdgeCount, group=Metric, shape=Metric, color=Metric)) +
+    geom_line() +
+    geom_point() +
+    scale_x_discrete(limits=c("Complete","Median","Mean","MeanSigma")) +
+   ggtitle("Threshold Falloff Patterns for Edge Count") +
+   xlab("Threshold") + ylab("Edge Count (Co-occurances)")
+
+ggplot(data=falloff, aes(x=Threshold, y=ValCount, group=Metric, shape=Metric, color=Metric)) +
+    geom_line() +
+    geom_point() +
+    scale_x_discrete(limits=c("Complete","Median","Mean","MeanSigma")) +
+   ggtitle("Threshold Falloff Patterns for Nonzero Metric Value Count") +
+   xlab("Threshold") + ylab("Count of Metric Values")
+
+```
+
+The mean edge weight of each metric also behaves differently as increasing thresholds are applied. Culling the AA dataset increases the strength of edges in the AA graph, indicating that the thresholds are removing lower probability co-occurancess. In contrast, culling the ES dataset decreases the strength of ES graph edge weights, indicating that the thresholds (that progressively remove the smaller/rarer occupations) are removing higher probability co-occurancess. The belassa edge weight does not have a trend, suggesting that it may be the most robust metric 
+
+```{r}
+
+ggplot(data=falloff, aes(x=Threshold, y=MeanEdgeWt, group=Metric, shape=Metric, color=Metric)) +
+    geom_line() +
+    geom_point() +
+    scale_x_discrete(limits=c("Complete","Median","Mean","MeanSigma")) +
+   ggtitle("Threshold Falloff Patterns for Mean Edge Weight") +
+   xlab("Threshold") + ylab("Mean Edge Weight")
+```
+
+```{r}
+B.reduced.edges <- B.edge.list %>% filter(weight >= 0)
+AA.reduced.edges <- AA.edge.list %>% filter(weight >= 0)
+ES.reduced.edges <- ES.edge.list %>% filter(weight >= 0)
+
+workers <- data_long %>% select(Occupation, Workers) %>% group_by(Occupation) %>% summarize(Workers = sum(Workers))
+colors <- adjustcolor(c("light blue", "yellowgreen", 'orange', "dark red", "gold"), alpha=.6)
+
+B.net <- graph.data.frame(B.reduced.edges, directed = FALSE)
+AA.net <- graph.data.frame(AA.reduced.edges, directed = FALSE)
+ES.net <- graph.data.frame(ES.reduced.edges, directed = FALSE)
+
+V(B.net)$workers = as.character(workers$Workers[match(V(B.net)$name, workers$Occupation)])
+V(AA.net)$workers = as.character(workers$Workers[match(V(AA.net)$name, workers$Occupation)])
+V(ES.net)$workers = as.character(workers$Workers[match(V(ES.net)$name, workers$Occupation)])
+
+#B.cd <- leading.eigenvector.community(B.net)
+#AA.cd <- leading.eigenvector.community(AA.net)
+#ES.cd <- leading.eigenvector.community(ES.net)
+B.cd <- cluster_fast_greedy(B.net)
+AA.cd <- cluster_fast_greedy(AA.net)
+ES.cd <- cluster_fast_greedy(ES.net)
+
+V(B.net)$community <- B.cd$membership
+V(AA.net)$community <- AA.cd$membership
+V(ES.net)$community <- ES.cd$membership
+
+# minX <- rep(-Inf, vcount(net))
+# maxX <- rep(Inf, vcount(net))
+# minY <- rep(-875, vcount(net))
+# maxY <- rep(875, vcount(net))
+
+B.coords <- layout_with_fr(B.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+AA.coords <- layout_with_fr(AA.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+ES.coords <- layout_with_fr(ES.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+```
+
+#Product Space Graphs
+
+The mean threshold product space graphs appear to be optimal in terms of the number of ties and interpretability. However, the Mean+Sigma serves as a cross-check for the strongest patterns, and ad hoc modification of the threshold also highlights key patterns in the graphs. 
+
+##ES Product Space Graph
+
+Before going into the E prouct pace graph, it is worth noting that the ES metric is basically useless. It is already the numerator in the Belassa index, which tells you position relative to a global industry average (a constant). As such, ES will always be directly proportional to Belassa within each industry! The denominator of Belassa function to standardize among industries by dividing by the global average of each industry-such that a Belassa of 3 in one industry is the same as a Belasssa of 3 in another industry. Thus, divergence of ES from Belassa will come from not standardizing for differences in ES among industries. 
+
+Proximity is the probability of 'strong' (above threshold) ES co-occurrences, which should be biased against both A) smaller/rarer occupations with lower percentages of the workers in any community, and B) larger settlements because they often have smaller proportions of any given occupation than smaller settlements. 
+
+The above falloff pattern graphs suggested that this systematically removed the smallest occupations, and the ES product space graph suggest the same. ES proximity among occupations appears to be dominated by the overall scale and ubiquity of the occupation. The core-periphery pattern of the product space network has the largest and most ubiquitous occupations in a single core, with smaller and less ubiquitous occupations radiating outwards. Peripheral occupations are attached to the core because they spatially overlap with the largest and most ubiquitous occupations, but they are not attached to each other. This would normally suggest that smaller/rarer occupations do not spatially overlap with each other, but this is really just an artifact of the systematic bias of ES against smaller/rarer occupations with increasing threshold size. 
+
+
+```{r}
+plot(ES.net, vertex.color=colors[V(ES.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = as.integer(V(ES.net)$workers) / 4, 
+     edge.width=E(ES.net)$weight * 2,
+     layout = ES.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - ES")
+paste('Mean degree for ES is', round(mean(degree(ES.net)), 1))
+```
+
+##AA Product Space Graph
+
+At first glance, the AA product space graph is largely driven by scale effects. Ties between occupations will be strong if there is a higher probability that two occupations will both have (above threshold) AA in any given location. We would expect this to be the case because large cities will tend to have larger AA in many occupations than smaller occupations. This appears to explain why we get a single, densely-connected core in the product space graph for AA. 
+
+```{r}
+plot(AA.net, vertex.color=colors[V(AA.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = as.integer(V(AA.net)$workers) / 4, 
+     edge.width=E(AA.net)$weight * 2,
+     layout = AA.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - AA")
+paste('Mean degree for AA is', round(mean(degree(AA.net)), 1))
+```
+
+
+The occupations that do not at all fit this general scale-driven pattern are on the periphery of the graph: Stone cutters on the one hand, and Barrio Merchants and Paper Makers on the other hand. Barrio Merchants and Paper Makers are extremely rare (1 and 2 settlements) and are not located in the largest settlements, so they are only connected to the core (and each other) by their attachment to potters in Santa Maria Acxotla. 
+
+Stone cutters are more ubiquitous, and the large occupation has numerous workers in many settlements in the central area, such that AA does not covary with scale very well. This is telling of the green modularity group (Flower Workers, Painters/Scribes, and Stone Cutters), all of which cater to Noble demand clustered in the central region. 
+
+The difference between the orange and blue modularity clusters is especially telling, and highlights a recently-discovered flaw in the dataset. The orange group has strong correlations of AA with scale. For a few occupations this genuine (doctors and potters). For all others this is due to the concentration of these occupations in the northern region, which happens to have most of the largest settlements. However, this \ is spurious because these large northern settlements (Texmollocan, Aztatoacan, and Teotlalzinco) are not actually large cities, but rather large municipalities that each contain several dispersed small towns (I only just figured this out through careful archival work). The next iteration of the data will disaggregate these large settlements into 3-7 towns each, which should split the core of the current product space graph into two or more clusters. 
+
+The blue group seems to represent outliers to the orange group precisely because none of them are clustered in the northern region. Instead, these are either widely distributed among regions or clustered in the central region. They are therefore have greater AA proximity to each other than to the orange group. This interpretation is cross-validated by the Mean+Sigma graph, which pulls the two clusters apart when (weaker) tiess are removed.
+
+In sum, the current AA product space graph is messy but promising. We should see how the disaggregation of the northern settlements affects the AA product space graph. It should have a major impact on the network topology by splitting-up the densely-connected core. This might result in a new northern region cluster (as seen in the Belassa graph). Since we think that most individual occupations are NOT driven by settlement scale in the MdH dataset (i.e. the lumpiness hypothesis; in contrast to the aggregate % of specialists in each community), the next iteration of the AA product space graph should reflect this. The AA graph is also useful because of the easy interpretability of the purple and green clusters, which are outliers to the scale-driven patterns. 
+
+##Belassa Product Space Graph
+
+Following extensive exploratory spatial analysis of the MdH data, my interpretations of the Belassa index product space graph have changed a bit.
+
+First, the orage modularity cluster represents occupations mostly or exclusively situated in northern region settlements. This is in-part due to the abundance of forests in this area, as 3/4 are woodland natural resource occupations (featherworkers really arent dependent on forest natural resources). The isolated northern cluster is connected to the rest of the graph via hunters, which spills southward into the central region -- connecting hunters to concentrations of Sandal Makers, Fainters/Scribes, and Flower Workers. 
+
+Second, the blue/green core represents more widespread occupations with partially-overlapping spatial distributions. This co-location pattern creates a dense and well-mixed core without clear centrality. This suggests that occupations have local spatial clusters rather than being determined by their place within the central place hierarchy. This pattern again illustrates the spatial lumpiness of occupational locations. Nevertheless, the Belassa index factors-out scale, so this could be an artifact of that.
+
+The green cluster represents more spatially concentrated, partially-overlapping occupations. In contrast, the blue cluster represents more widespread and ubiquitous occupations with depressed Belassa indicies. For example, almost every town has stone cutters, resulting in many low Balassa scores. Wood workers were so ubiquitous and abundant that they have no belassa scores that meet the mean threshold! Potters, while smaller in number and less ubiquitous, are similarly spread out widely -- not spatially clustered like the green and orange groups. 
+
+Also, we are missing a number of occupations, including Barrio Merchants, Wood Workers, and Paper Makers because these were poorly connected to other occupations due to their wide or restricted spatial distributions.
+
+```{r}
+plot(B.net, vertex.color=colors[V(B.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = as.integer(V(B.net)$workers) / 4, 
+     edge.width=E(B.net)$weight * 2,
+     layout = B.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - Balassa RCA")
+paste('Mean degree for Balassa is', round(mean(degree(B.net)), 1))
+
+```
+
+# Conclusions and Moving Forward
+
+The ES graph is meaningless and should be removed. 
+
+The Belassa graph is the most intepretable, but could be modified to include scale. The AA graph is promising, and will improve with spatial disaggregation of the northern towns, but the scale-driven effects should ideally be tempered to a degree. Thus, it would be ideal to integrate Belassa and AA into a single metric
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,235 @@
+---
+title: "Aztec 'Settlement' (Product) Space Networks"
+author: "Rudolf Cesaretti"
+date: "September 22, 2019"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+setwd("C:/Users/TJ McMote/Desktop/Joffa Complexity")
+require(knitr)
+# Set so that long lines in R will be wrapped:
+opts_chunk$set(tidy.opts=list(width.cutoff=80),tidy=TRUE)
+```
+
+```{r }
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(data.table))
+library(ggthemes)
+library(Cairo)
+library(RColorBrewer)
+library(stringr)
+library(gtools) #provides combination function for edge list creation
+suppressPackageStartupMessages(library(igraph))
+suppressPackageStartupMessages(library(gridExtra))
+```
+
+```{r}
+data <- fread('./MdH_v3_RC.csv')
+data_short <- data %>% 
+    dplyr::select(-Runaways, -Deaths,  -Market, -`Landholding HHH`, -`Renting HHH`, -`Farming HHH`) %>% 
+    filter(Community != 'Total') %>% arrange(Community)
+data_long <- data_short %>% gather(Occupation, Workers, 7:25) 
+#paste('Number of occupations:', length(unique(data_long$Occupation)))
+```
+
+```{r}
+presence <- data_long %>% mutate(presence = ifelse(Workers > 0, 1, 0))
+diversity <- presence %>% group_by(Community) %>% mutate(diversity = sum(presence)) %>% 
+    dplyr::select(Community, Region, `Total HHH`, `Total Commoner HHH`, Total, diversity) %>% distinct %>% ungroup
+	
+presence <- data_long %>% mutate(presence = ifelse(Workers > 0, 1, 0))
+diversity_nomerc <- presence %>% group_by(Community) %>% mutate(diversity = sum(presence)) %>% 
+    dplyr::select(Community, Region, `Total HHH`, `Total Commoner HHH`, Total, diversity) %>% distinct %>% ungroup
+diversity_nomerc[17,5] <- 19
+diversity_nomerc[17,6] <- 6
+```
+
+```{r}
+ubiquity <- presence %>% group_by(Occupation) %>% mutate(`Total Workers` = sum(Workers), ubiquity = sum(presence)) %>% 
+    dplyr::select(Occupation, `Total Workers`, ubiquity) %>% distinct %>% ungroup
+ubiquity_nomerc <- ubiquity[1:18,]
+```
+
+
+```{r}
+ESAA <- data_long %>% group_by(Community) %>% mutate(comm.workers = sum(Workers)) %>% group_by(Occupation) %>% 
+    mutate(occ.workers = sum(Workers)) %>% ungroup %>% 
+    mutate(ES = Workers / comm.workers, AA = Workers / occ.workers, ES_pop = Workers / `Total HHH`) %>% filter(Workers > 0)
+```
+
+```{r}
+total.workers <- sum(data_long$Workers)
+balassa <- data_long %>% group_by(Community) %>% mutate(comm.workers = sum(Workers)) %>% group_by(Occupation) %>% 
+    mutate(occ.workers = sum(Workers)) %>% 
+    ungroup %>% mutate(index = (Workers / comm.workers) / (occ.workers / total.workers)) %>% 
+    select(Community, Occupation, index) %>% filter(index > 0) %>% mutate(log.index = log(index))
+```
+
+```{r}
+ESAAp <- ESAA %>% mutate(log.AA = log(AA), log.ES = log(ES))
+```
+
+```{r}
+#Apply thesholds to prune adjacency matrix:
+complete <- presence %>% select(Community, Occupation, presence)
+
+B.reduced.one <- balassa %>% mutate(presence = if_else(index >= 1, 1, 0)) %>% select(Occupation, Community, presence)
+
+mean.index <- mean(balassa$index)
+median.index <- median(balassa$index)
+
+B.reduced.mean <- balassa %>% mutate(presence = if_else(index >= mean.index, 1, 0)) %>% select(Occupation, Community, presence)
+B.reduced.median <- balassa %>% mutate(presence = if_else(index >= median.index, 1, 0)) %>% select(Occupation, Community, presence)
+
+threshold <- mean(balassa$log.index) + sd(balassa$log.index)
+
+B.reduced.sigma <- balassa %>% mutate(presence = if_else(log.index >= threshold, 1, 0)) %>% select(Occupation, Community, presence)
+
+B.complete <- balassa %>% mutate(presence = if_else(index > 0, 1, 0)) %>% select(Occupation, Community, presence)
+```
+
+
+```{r}
+mean.AA <- mean(ESAA$AA)
+median.AA <- median(ESAA$AA)
+
+AA.reduced.mean <- ESAA %>% mutate(presence = if_else(AA >= mean.AA, 1, 0)) %>% select(Community, Occupation, presence)
+AA.reduced.median <- ESAA %>% mutate(presence = if_else(AA >= median.AA, 1, 0)) %>% select(Community, Occupation, presence)
+
+threshold <- mean(ESAAp$log.AA) + sd(ESAAp$log.AA)
+
+AA.reduced.sigma <- ESAAp %>% mutate(presence = if_else(log.AA >= threshold, 1, 0)) %>% select(Community, Occupation, presence)
+
+AA.complete <- ESAA %>% mutate(presence = if_else(AA > 0, 1, 0)) %>% select(Community, Occupation, presence)
+```
+
+```{r}
+mean.ES <- mean(ESAA$ES)
+median.ES <- median(ESAA$ES)
+
+ES.reduced.mean <- ESAA %>% mutate(presence = if_else(ES >= mean.ES, 1, 0)) %>% select(Community, Occupation, presence)
+ES.reduced.median <- ESAA %>% mutate(presence = if_else(ES >= median.ES, 1, 0)) %>% select(Community, Occupation, presence)
+
+threshold <- mean(ESAAp$log.ES) + sd(ESAAp$log.ES)
+
+ES.reduced.sigma <- ESAAp %>% mutate(presence = if_else(log.ES >= threshold, 1, 0)) %>% select(Community, Occupation, presence)
+
+ES.complete <- ESAA %>% mutate(presence = if_else(ES > 0, 1, 0)) %>% select(Community, Occupation, presence)
+```
+
+```{r}
+comms <- c(unique(data_long$Community))
+
+edges <- data.frame(combinations(length(comms), 2, comms)) %>% mutate(comm1 = as.character(X1), 
+                                                                    comm2 = as.character(X2)) %>% select(comm1, comm2)
+edge.rows <- nrow(edges)
+```
+
+```{r}
+# MEAN
+adjacency <- B.reduced.mean %>% spread(Community, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    comm1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    comm2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / comm1, co.occur / comm2)
+}
+B.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+B.proximity <- proximity
+
+adjacency <- AA.reduced.mean %>% spread(Community, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    comm1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    comm2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / comm1, co.occur / comm2)
+}
+AA.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+AA.proximity <- proximity
+
+adjacency <- ES.reduced.mean %>% spread(Community, presence, fill = 0)
+co.occurances <- vector("integer", edge.rows)
+proximity <- vector("integer", edge.rows)
+for (row in 1:edge.rows){
+    co.occur <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1 & !! as.name(edges[row, 2]) == 1))
+    comm1 <- nrow(adjacency %>% filter(!! as.name(edges[row, 1]) == 1))
+    comm2 <- nrow(adjacency %>% filter(!! as.name(edges[row, 2]) == 1))
+    co.occurances[row] <- co.occur
+    proximity[row] <- min(co.occur / comm1, co.occur / comm2)
+}
+ES.edge.list <-  cbind(edges, proximity) %>% filter(proximity > 0) %>% rename(weight = proximity)
+ES.proximity <- proximity
+```
+
+```{r}
+B.reduced.edges <- B.edge.list %>% filter(weight >= 0)
+AA.reduced.edges <- AA.edge.list %>% filter(weight >= 0)
+ES.reduced.edges <- ES.edge.list %>% filter(weight >= 0)
+
+Pop <- data_long %>% select(Community, `Total HHH`) %>% group_by(Community) %>% summarize(Population = sum(`Total HHH`))
+colors <- adjustcolor(c("light blue", "yellowgreen", 'orange', "dark red", "gold"), alpha=.6)
+
+B.net <- graph.data.frame(B.reduced.edges, directed = FALSE)
+AA.net <- graph.data.frame(AA.reduced.edges, directed = FALSE)
+ES.net <- graph.data.frame(ES.reduced.edges, directed = FALSE)
+
+V(B.net)$Pop = as.character(Pop$Population[match(V(B.net)$name, Pop$Community)])
+V(AA.net)$Pop = as.character(Pop$Population[match(V(AA.net)$name, Pop$Community)])
+V(ES.net)$Pop = as.character(Pop$Population[match(V(ES.net)$name, Pop$Community)])
+
+#B.cd <- leading.eigenvector.community(B.net)
+#AA.cd <- leading.eigenvector.community(AA.net)
+#ES.cd <- leading.eigenvector.community(ES.net)
+B.cd <- cluster_fast_greedy(B.net)
+AA.cd <- cluster_fast_greedy(AA.net)
+ES.cd <- cluster_fast_greedy(ES.net)
+
+V(B.net)$community <- B.cd$membership
+V(AA.net)$community <- AA.cd$membership
+V(ES.net)$community <- ES.cd$membership
+
+# minX <- rep(-Inf, vcount(net))
+# maxX <- rep(Inf, vcount(net))
+# minY <- rep(-875, vcount(net))
+# maxY <- rep(875, vcount(net))
+
+B.coords <- layout_with_fr(B.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+AA.coords <- layout_with_fr(AA.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+ES.coords <- layout_with_fr(ES.net, niter = 100000)#, minx = minX, maxx = maxX, miny = minY, maxy = maxY)
+```
+
+```{r}
+plot(B.net, vertex.color=colors[V(B.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = as.integer(V(B.net)$Pop) / 500, 
+     edge.width=E(B.net)$weight * 2,
+     layout = B.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - Balassa RCA")
+paste('Mean degree for Balassa is', round(mean(degree(B.net)), 1))
+
+plot(AA.net, vertex.color=colors[V(AA.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = as.integer(V(AA.net)$Pop) / 500, 
+     edge.width=E(AA.net)$weight * 2,
+     layout = AA.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - AA")
+paste('Mean degree for Balassa is', round(mean(degree(B.net)), 1))
+
+plot(ES.net, vertex.color=colors[V(ES.net)$community], 
+     vertex.frame.color = 'dark grey', vertex.label.color = "black", vertex.label.cex = .6, 
+     vertex.label.font = 1, 
+     vertex.size = as.integer(V(ES.net)$Pop) / 500, 
+     edge.width=E(ES.net)$weight * 2,
+     layout = ES.coords, asp = 0, main = "Matricula Huexotzinco 1560 Product Space - ES")
+paste('Mean degree for Balassa is', round(mean(degree(B.net)), 1))
+
+```
